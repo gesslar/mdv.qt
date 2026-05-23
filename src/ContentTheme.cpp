@@ -73,10 +73,20 @@ QString ContentTheme::spacing(const QString &key) const {
 }
 
 QString ContentTheme::fontValue(const QString &key) const {
-  // Placeholder keys arrive as fonts.prose / fonts.prose.size, etc.
-  // QSettings uses '/' as the path separator, so map dotted → slashed.
-  QString settingsKey = key;
-  settingsKey.replace('.', '/');
+  // Placeholder keys arrive as "fonts.prose" or "fonts.prose.size".
+  // QSettings treats '/' as a group separator, so we only convert the
+  // *first* dot (the section/key boundary) — leaving any further dots
+  // intact lets a key like "fonts.prose.size" map to QSettings path
+  // "fonts/prose.size" (group "fonts", key "prose.size"), which is
+  // where PreferencesDialog::saveToSettings actually writes it.
+  // Blindly replacing every dot would mis-route it to a non-existent
+  // "fonts/prose/size" subgroup.
+  const int firstDot = key.indexOf(QLatin1Char('.'));
+  const QString settingsKey =
+      (firstDot < 0)
+          ? key
+          : QStringLiteral("%1/%2").arg(key.left(firstDot),
+                                        key.mid(firstDot + 1));
 
   QString stored = QSettings().value(settingsKey).toString();
   if (!stored.isEmpty()) {
