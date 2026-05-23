@@ -6,7 +6,6 @@
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
-#include <QLabel>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
@@ -49,14 +48,6 @@ PreferencesDialog::PreferencesDialog(QWidget *parent) : QDialog(parent) {
   m_monoFont = new QFontComboBox(fontsGroup);
   m_monoFont->setFontFilters(QFontComboBox::MonospacedFonts);
   fontsLayout->addRow(tr("Mono:"), m_monoFont);
-
-  // Note: mono size is intentionally absent — see header comment.
-  auto *hint = new QLabel(
-      tr("<small>Mono size tracks prose size (0.92em). Ctrl+wheel zooms "
-         "both together.</small>"),
-      fontsGroup);
-  hint->setWordWrap(true);
-  fontsLayout->addRow(QString(), hint);
 
   root->addWidget(fontsGroup);
   root->addStretch();
