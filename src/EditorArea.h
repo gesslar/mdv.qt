@@ -51,6 +51,11 @@ public:
 signals:
   void currentDocumentChanged(DocumentView *doc);
 
+  // Re-emission of an EditorPane's filesDropped signal — the active
+  // pane has already been set before this fires, so subscribers can
+  // route through their normal openFile path.
+  void filesDropped(const QStringList &paths);
+
 private slots:
   void onPaneActivated();
   void onPaneEmpty();

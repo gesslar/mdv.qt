@@ -223,6 +223,7 @@ void EditorArea::registerPane(EditorPane *pane) {
   connect(pane, &EditorPane::currentDocumentChanged, this,
           &EditorArea::onPaneCurrentDocumentChanged);
   connect(pane, &EditorPane::tabClosed, this, &EditorArea::onTabClosed);
+  connect(pane, &EditorPane::filesDropped, this, &EditorArea::filesDropped);
 }
 
 void EditorArea::onTabClosed(const QString &filePath) {

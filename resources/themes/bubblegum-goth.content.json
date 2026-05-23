@@ -1,0 +1,52 @@
+{
+  "name": "Bubblegum Goth",
+  "type": "dark",
+
+  "spacing": {
+    "paragraph":   "1em",
+    "heading":     "1.5em",
+    "list.indent": "1.5em",
+    "code.pad":    "0.75em 1em",
+    "table.cell":  "0.5em 1em"
+  },
+
+  "colors": {
+    "text.foreground":          "#bebebe",
+    "text.background":          "#0f0f0f",
+    "text.muted":               "#d750b2",
+
+    "heading.foreground":       "#ff75d7",
+    "heading.border":           "#ff75d766",
+
+    "link.foreground":          "#ffb9ff",
+    "link.underline":           "#ff75d740",
+
+    "code.foreground":          "#e4e4e7",
+    "code.background":          "#ff75d726",
+    "code.border":              "#ff75d7bf",
+    "code.inline.background":   "#ff75d733",
+    "code.inline.outline":      "#ff75d766",
+
+    "blockquote.foreground":    "#e4e4e7",
+    "blockquote.border":        "#ff75d7",
+    "blockquote.background":    "#18181b",
+
+    "table.border":             "#d750b2bf",
+    "table.header.background":  "#18181b",
+    "table.header.foreground":  "#ff75d7",
+
+    "hr.foreground":            "#ff75d726",
+
+    "syntax.keyword":           "#739abd",
+    "syntax.string":            "#be917f",
+    "syntax.comment":           "#636363",
+    "syntax.number":            "#8aa168",
+    "syntax.function":          "#a7a776",
+    "syntax.type":              "#59ab99",
+    "syntax.variable":          "#6ca1bc",
+    "syntax.constant":          "#509fbe",
+    "syntax.operator":          "#adadad",
+    "syntax.regex":             "#a16362",
+    "syntax.tag":               "#6ca1bc"
+  }
+}

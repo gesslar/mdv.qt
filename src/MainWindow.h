@@ -5,6 +5,7 @@
 
 class DocumentView;
 class EditorArea;
+class PreferencesDialog;
 class QMenu;
 
 class MainWindow : public QMainWindow {
@@ -17,6 +18,10 @@ public:
   // Open in the active editor pane. Returns the DocumentView the user is
   // now looking at, or nullptr on load failure.
   DocumentView *openFile(const QString &path);
+
+protected:
+  void dragEnterEvent(QDragEnterEvent *e) override;
+  void dropEvent(QDropEvent *e) override;
 
 private slots:
   void onOpen();
@@ -32,6 +37,8 @@ private slots:
   void onMoveTabLeft();
   void onCurrentDocumentChanged(DocumentView *doc);
   void rebuildRecentMenu();
+  void onPreferences();
+  void onPreferencesApplied();
 
 private:
   void loadRecentFiles();
@@ -41,4 +48,5 @@ private:
   EditorArea *m_area = nullptr;
   QMenu *m_recentMenu = nullptr;
   QStringList m_recentFiles;
+  PreferencesDialog *m_preferencesDialog = nullptr;
 };

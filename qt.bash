@@ -7,11 +7,12 @@
 set -euo pipefail
 
 PACKAGES=(
-    qt-creator      # the IDE
-    qt6-doc         # offline Qt 6 docs (browsable inside Creator)
-    ninja-build     # faster generator than make for CMake
-    gdb             # debugger Qt Creator drives
+    qt-creator         # the IDE
+    qt6-doc            # offline Qt 6 docs (browsable inside Creator)
+    ninja-build        # faster generator than make for CMake
+    gdb                # debugger Qt Creator drives
     clang-tools-extra  # clangd, for code model + completion
+    md4c-devel         # markdown → HTML (CommonMark + GFM)
 )
 
 if ! command -v dnf >/dev/null 2>&1; then

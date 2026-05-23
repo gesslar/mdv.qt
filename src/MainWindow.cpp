@@ -1,16 +1,22 @@
 #include "MainWindow.h"
 
 #include <QAction>
+#include <QDragEnterEvent>
+#include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QMenu>
 #include <QMenuBar>
+#include <QMimeData>
 #include <QSettings>
 #include <QStatusBar>
+#include <QUrl>
 
+#include "ContentTheme.h"
 #include "DocumentView.h"
 #include "EditorArea.h"
 #include "EditorPane.h"
+#include "PreferencesDialog.h"
 
 namespace {
 constexpr int kRecentFilesLimit = 10;
@@ -25,6 +31,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   setCentralWidget(m_area);
   connect(m_area, &EditorArea::currentDocumentChanged, this,
           &MainWindow::onCurrentDocumentChanged);
+  connect(m_area, &EditorArea::filesDropped, this,
+          [this](const QStringList &paths) {
+            for (const QString &p : paths) openFile(p);
+          });
+
+  // Catch-all for drops that miss the EditorArea (menubar, status bar,
+  // any chrome). Drops anywhere on the window get routed to the
+  // currently active pane via openFile().
+  setAcceptDrops(true);
 
   auto *fileMenu = menuBar()->addMenu(tr("&File"));
 
@@ -58,6 +73,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   auto *reopenAction = fileMenu->addAction(tr("Reopen Closed &Tab"));
   reopenAction->setShortcut(QKeySequence(tr("Ctrl+Shift+T")));
   connect(reopenAction, &QAction::triggered, this, &MainWindow::onReopenClosed);
+
+  fileMenu->addSeparator();
+
+  auto *prefsAction = fileMenu->addAction(tr("&Preferences..."));
+  prefsAction->setShortcut(QKeySequence::Preferences);
+  connect(prefsAction, &QAction::triggered, this, &MainWindow::onPreferences);
 
   fileMenu->addSeparator();
 
@@ -103,6 +124,24 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
 MainWindow::~MainWindow() = default;
 
+void MainWindow::dragEnterEvent(QDragEnterEvent *e) {
+  if (!e->mimeData()->hasUrls()) return;
+  for (const QUrl &url : e->mimeData()->urls()) {
+    if (url.isLocalFile()) {
+      e->acceptProposedAction();
+      return;
+    }
+  }
+}
+
+void MainWindow::dropEvent(QDropEvent *e) {
+  if (!e->mimeData()->hasUrls()) return;
+  for (const QUrl &url : e->mimeData()->urls()) {
+    if (url.isLocalFile()) openFile(url.toLocalFile());
+  }
+  e->acceptProposedAction();
+}
+
 void MainWindow::onOpen() {
   const QStringList paths = QFileDialog::getOpenFileNames(
       this, tr("Open Markdown Files"), QString(),
@@ -128,6 +167,24 @@ void MainWindow::onCloseAllInActive() { m_area->closeAllInActive(); }
 void MainWindow::onCloseAllEverywhere() { m_area->closeAllEverywhere(); }
 
 void MainWindow::onReopenClosed() { m_area->reopenLastClosed(); }
+
+void MainWindow::onPreferences() {
+  if (!m_preferencesDialog) {
+    m_preferencesDialog = new PreferencesDialog(this);
+    connect(m_preferencesDialog, &PreferencesDialog::preferencesApplied, this,
+            &MainWindow::onPreferencesApplied);
+  }
+  m_preferencesDialog->exec();
+}
+
+void MainWindow::onPreferencesApplied() {
+  // Theme name may have changed in QSettings; pull the new values into
+  // the singleton, then push the resulting stylesheet to every open
+  // DocumentView (they each re-render to pick up the new rules).
+  ContentTheme::active().reload();
+  const auto docs = findChildren<DocumentView *>();
+  for (DocumentView *doc : docs) doc->refresh();
+}
 
 void MainWindow::onSplitRight() {
   m_area->splitActive(EditorArea::Right);

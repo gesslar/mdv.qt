@@ -1,0 +1,180 @@
+/* mdv.qt — Document content structural stylesheet.
+ *
+ * Placeholders @{key.path} are resolved at load time against:
+ *   - the active content theme JSON  (colors.*, spacing.*)
+ *   - QSettings                       (fonts.* — see ContentTheme::fontValue)
+ *
+ * Author the *structural* decisions here (border styles, padding shapes,
+ * font-style choices, etc.). Tunable values (colors, dimensions, font
+ * families) belong in the theme JSON or in user settings.
+ */
+
+/* Prose font (family + size) is applied via QTextDocument::setDefaultFont
+ * from DocumentView, not via CSS. Qt's stylesheet engine routes font
+ * properties through the document's default QFont rather than through
+ * `body { font-family }`, and the HTML fragments md4c produces don't
+ * contain a real <body> for the selector to bind to either way. */
+body {
+  color: @{text.foreground};
+  background-color: @{text.background};
+}
+
+h1 {
+  color: @{heading.foreground};
+  border-bottom: 1px solid @{heading.border};
+  padding-bottom: 0.3em;
+  font-weight: 200;
+  letter-spacing: 0.125rem;
+  margin-top: @{spacing.heading};
+}
+
+h2, h3, h4, h5, h6 {
+  color: @{heading.foreground};
+  font-weight: 200;
+  letter-spacing: 0.1rem;
+  margin-top: @{spacing.heading};
+}
+
+p {
+  margin: @{spacing.paragraph} 0;
+}
+
+a {
+  color: @{link.foreground};
+  text-decoration: underline;
+}
+
+ul, ol {
+  margin: @{spacing.paragraph} 0;
+  padding-left: @{spacing.list.indent};
+}
+
+blockquote {
+  color: @{blockquote.foreground};
+  background-color: @{blockquote.background};
+  border-left: 3px solid @{blockquote.border};
+  padding: 0.25em 0.75em;
+  margin: @{spacing.paragraph} 0;
+}
+
+hr {
+  background-color: @{hr.foreground};
+  height: 0.1rem;
+  border: none;
+}
+
+pre {
+  background-color: @{code.background};
+  border: 1px solid @{code.border};
+  border-radius: 6px;
+  padding: @{spacing.code.pad};
+  font-family: "@{fonts.mono}";
+  font-size: 0.92em;
+  white-space: pre;
+}
+
+code {
+  background-color: @{code.inline.background};
+  border: 1px dotted @{code.inline.outline};
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+  color: @{code.foreground};
+  font-family: "@{fonts.mono}";
+  font-size: 0.92em;
+}
+
+pre > code {
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  color: @{text.foreground};
+}
+
+table {
+  border-collapse: collapse;
+  margin: @{spacing.paragraph} 0;
+}
+
+th, td {
+  border-bottom: 1px dotted @{table.border};
+  padding: @{spacing.table.cell};
+  vertical-align: top;
+  text-align: left;
+}
+
+th {
+  background-color: @{table.header.background};
+  color: @{table.header.foreground};
+  border-bottom: 1px solid @{table.header.foreground};
+}
+
+/* Syntax highlight color slots — applied by KSyntaxHighlighting via a
+ * Theme adapter; same keys here let inline span-class fallback work
+ * if any HTML-side highlighting is rendered. */
+.hljs-keyword,
+.hljs-literal,
+.hljs-meta,
+.hljs-name {
+  color: @{syntax.keyword};
+}
+
+.hljs-string,
+.hljs-code,
+.hljs-meta .hljs-string {
+  color: @{syntax.string};
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-formula {
+  color: @{syntax.comment};
+  font-style: italic;
+}
+
+.hljs-number {
+  color: @{syntax.number};
+}
+
+.hljs-title,
+.hljs-title.function_,
+.hljs-built_in {
+  color: @{syntax.function};
+}
+
+.hljs-type,
+.hljs-title.class_ {
+  color: @{syntax.type};
+}
+
+.hljs-variable,
+.hljs-attr,
+.hljs-attribute,
+.hljs-property {
+  color: @{syntax.variable};
+}
+
+.hljs-variable.constant_ {
+  color: @{syntax.constant};
+}
+
+.hljs-operator,
+.hljs-subst {
+  color: @{syntax.operator};
+}
+
+.hljs-regexp {
+  color: @{syntax.regex};
+}
+
+.hljs-tag {
+  color: @{syntax.tag};
+}
+
+.hljs-section,
+.hljs-strong {
+  font-weight: bold;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
