@@ -136,10 +136,18 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *e) {
 
 void MainWindow::dropEvent(QDropEvent *e) {
   if (!e->mimeData()->hasUrls()) return;
+  // Only accept the drop if we actually opened something. Accepting on
+  // a Move action when no local files were present can cause the drag
+  // source to remove the originals — drag-source-side will think we
+  // took ownership.
+  bool accepted = false;
   for (const QUrl &url : e->mimeData()->urls()) {
-    if (url.isLocalFile()) openFile(url.toLocalFile());
+    if (url.isLocalFile()) {
+      openFile(url.toLocalFile());
+      accepted = true;
+    }
   }
-  e->acceptProposedAction();
+  if (accepted) e->acceptProposedAction();
 }
 
 void MainWindow::onOpen() {
@@ -174,6 +182,10 @@ void MainWindow::onPreferences() {
     connect(m_preferencesDialog, &PreferencesDialog::preferencesApplied, this,
             &MainWindow::onPreferencesApplied);
   }
+  // Always reload from settings before opening. Without this, edits the
+  // user made and then Cancelled would persist in the dialog's widgets
+  // and surface again next time it opens.
+  m_preferencesDialog->reload();
   m_preferencesDialog->exec();
 }
 

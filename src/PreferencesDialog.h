@@ -20,6 +20,12 @@ class PreferencesDialog : public QDialog {
 public:
   explicit PreferencesDialog(QWidget *parent = nullptr);
 
+  // Re-populate the widgets from QSettings. Called by MainWindow before
+  // each exec() so the dialog always opens reflecting the persisted
+  // state — Cancel discards in-flight edits, no stale values survive
+  // into the next opening.
+  void reload();
+
 signals:
   // Emitted after the user clicks Apply or OK and the new values have
   // been persisted to QSettings. MainWindow listens to this and
@@ -31,7 +37,6 @@ private slots:
   void onAccepted();
 
 private:
-  void loadFromSettings();
   void saveToSettings();
 
   QComboBox *m_themeCombo = nullptr;

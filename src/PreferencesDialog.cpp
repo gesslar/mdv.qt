@@ -64,10 +64,13 @@ PreferencesDialog::PreferencesDialog(QWidget *parent) : QDialog(parent) {
           &PreferencesDialog::onAccepted);
   connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
-  loadFromSettings();
+  reload();
 }
 
-void PreferencesDialog::loadFromSettings() {
+void PreferencesDialog::reload() {
+  // Called from the constructor and by MainWindow::onPreferences before
+  // each exec(). Idempotent — pulls every widget back to the persisted
+  // value so cancelled edits don't leak into the next opening.
   QSettings s;
 
   const QString theme =
