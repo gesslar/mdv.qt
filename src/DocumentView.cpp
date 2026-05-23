@@ -1,11 +1,13 @@
 #include "DocumentView.h"
 
 #include <QAbstractTextDocumentLayout>
+#include <QColor>
 #include <QFile>
 #include <QFileInfo>
 #include <QFont>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPalette>
 #include <QScrollBar>
 #include <QSettings>
 #include <QTextBlock>
@@ -36,6 +38,9 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   // Prose font goes through the document's default QFont — CSS body
   // rules don't reliably set font properties on QTextDocument.
   applyDocumentFont();
+  // Page background lives on the widget's QPalette::Base, not in the
+  // document's CSS — see applyDocumentPalette() comment.
+  applyDocumentPalette();
   connect(m_browser, &QWidget::customContextMenuRequested, this,
           &DocumentView::onContextMenuRequested);
   layout->addWidget(m_browser);
@@ -97,6 +102,7 @@ void DocumentView::refresh() {
   // since construction).
   m_browser->document()->setDefaultStyleSheet(ContentTheme::active().qss());
   applyDocumentFont();
+  applyDocumentPalette();
 
   if (m_filePath.isEmpty()) return;
 
@@ -120,6 +126,21 @@ void DocumentView::applyDocumentFont() {
   f.setPointSize(size);
 
   m_browser->document()->setDefaultFont(f);
+}
+
+void DocumentView::applyDocumentPalette() {
+  // body { background-color } in the document's CSS doesn't paint the
+  // viewport — QTextBrowser draws the viewport using the widget's
+  // QPalette::Base. Pull the theme's text.background / text.foreground
+  // through the palette so the page color shows. Element-level CSS
+  // rules in the template still win for headings, code, etc.
+  const QString bg = ContentTheme::active().color(QStringLiteral("text.background"));
+  const QString fg = ContentTheme::active().color(QStringLiteral("text.foreground"));
+
+  QPalette p = m_browser->palette();
+  if (!bg.isEmpty()) p.setColor(QPalette::Base, QColor(bg));
+  if (!fg.isEmpty()) p.setColor(QPalette::Text, QColor(fg));
+  m_browser->setPalette(p);
 }
 
 int DocumentView::topAnchor() const {

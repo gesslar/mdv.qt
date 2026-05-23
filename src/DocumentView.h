@@ -24,6 +24,12 @@ public:
   // construction and on Preferences-applied.
   void applyDocumentFont();
 
+  // Push text.background / text.foreground from the active theme into
+  // the QTextBrowser's QPalette. The viewport background is the
+  // widget's palette Base role, not the document's CSS, so we have to
+  // apply it here for the page color to take effect.
+  void applyDocumentPalette();
+
   // Canonical (symlink-resolved) absolute path, or empty if no file is loaded.
   QString filePath() const { return m_filePath; }
 
