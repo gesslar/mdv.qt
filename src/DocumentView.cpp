@@ -3,9 +3,11 @@
 #include <QAbstractTextDocumentLayout>
 #include <QFile>
 #include <QFileInfo>
+#include <QFont>
 #include <QMenu>
 #include <QMessageBox>
 #include <QScrollBar>
+#include <QSettings>
 #include <QTextBlock>
 #include <QTextBrowser>
 #include <QTextCursor>
@@ -13,7 +15,9 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include "ContentTheme.h"
 #include "EditorPane.h"
+#include "Markdown.h"
 
 DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   auto *layout = new QVBoxLayout(this);
@@ -22,6 +26,16 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   m_browser = new QTextBrowser(this);
   m_browser->setOpenExternalLinks(true);
   m_browser->setContextMenuPolicy(Qt::CustomContextMenu);
+  // Disable QTextBrowser's own drop handling so file URL drops bubble
+  // up to the EditorPane (which interprets them as "open this file")
+  // instead of being inserted as text into the rendered document.
+  m_browser->setAcceptDrops(false);
+  // Apply the active content theme's stylesheet. setDefaultStyleSheet
+  // persists across subsequent setHtml() calls on the same document.
+  m_browser->document()->setDefaultStyleSheet(ContentTheme::active().qss());
+  // Prose font goes through the document's default QFont — CSS body
+  // rules don't reliably set font properties on QTextDocument.
+  applyDocumentFont();
   connect(m_browser, &QWidget::customContextMenuRequested, this,
           &DocumentView::onContextMenuRequested);
   layout->addWidget(m_browser);
@@ -53,8 +67,10 @@ bool DocumentView::loadFile(const QString &path) {
 
   QTextStream in(&file);
   in.setEncoding(QStringConverter::Utf8);
-  m_browser->document()->setMarkdown(in.readAll(),
-                                     QTextDocument::MarkdownDialectGitHub);
+  // Render markdown → HTML externally (via md4c) and feed setHtml, so
+  // the document's default stylesheet actually applies. setMarkdown
+  // would bypass CSS by baking in QTextCharFormats during import.
+  m_browser->setHtml(mdv::markdownToHtml(in.readAll()));
 
   // QTextBrowser parks the text cursor wherever setMarkdown leaves it
   // and then scrolls to keep the cursor visible, which often lands at
@@ -74,6 +90,36 @@ bool DocumentView::loadFile(const QString &path) {
 
   emit fileLoaded(m_filePath);
   return true;
+}
+
+void DocumentView::refresh() {
+  // Re-pull the stylesheet (theme or font settings may have changed
+  // since construction).
+  m_browser->document()->setDefaultStyleSheet(ContentTheme::active().qss());
+  applyDocumentFont();
+
+  if (m_filePath.isEmpty()) return;
+
+  // Capture position before re-rendering; restore via the same anchor
+  // machinery the Split actions use.
+  const int anchor = topAnchor();
+  loadFile(m_filePath);
+  scrollToAnchor(anchor);
+}
+
+void DocumentView::applyDocumentFont() {
+  QSettings s;
+  QFont f = m_browser->document()->defaultFont();
+
+  const QString family = s.value(QStringLiteral("fonts/prose")).toString();
+  if (!family.isEmpty()) f.setFamily(family);
+
+  // Settings store an integer (the spinbox value). Use setPointSize so
+  // Ctrl+wheel zoomIn/zoomOut — which works in points — scales it.
+  const int size = s.value(QStringLiteral("fonts/prose.size"), 14).toInt();
+  f.setPointSize(size);
+
+  m_browser->document()->setDefaultFont(f);
 }
 
 int DocumentView::topAnchor() const {

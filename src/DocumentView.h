@@ -13,6 +13,17 @@ public:
 
   bool loadFile(const QString &path);
 
+  // Re-apply the active content theme's stylesheet and re-render the
+  // current file's HTML so the new styles take effect. Used when the
+  // Preferences dialog changes theme or fonts. No-op if no file is loaded.
+  void refresh();
+
+  // Read fonts/prose and fonts/prose.size from QSettings and apply via
+  // QTextDocument::setDefaultFont. Mono font/size live in the CSS
+  // (font-family on pre/code, font-size: 0.92em relative). Called on
+  // construction and on Preferences-applied.
+  void applyDocumentFont();
+
   // Canonical (symlink-resolved) absolute path, or empty if no file is loaded.
   QString filePath() const { return m_filePath; }
 

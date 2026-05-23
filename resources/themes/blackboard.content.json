@@ -1,0 +1,52 @@
+{
+  "name": "Blackboard",
+  "type": "dark",
+
+  "spacing": {
+    "paragraph":   "1em",
+    "heading":     "1.5em",
+    "list.indent": "1.5em",
+    "code.pad":    "0.75em 1em",
+    "table.cell":  "0.5em 1em"
+  },
+
+  "colors": {
+    "text.foreground":          "#bebebe",
+    "text.background":          "#0f0f0f",
+    "text.muted":               "#436d92",
+
+    "heading.foreground":       "#5d88af",
+    "heading.border":           "#5d88af66",
+
+    "link.foreground":          "#90bde5",
+    "link.underline":           "#5d88af40",
+
+    "code.foreground":          "#e4e4e7",
+    "code.background":          "#5d88af26",
+    "code.border":              "#5d88afbf",
+    "code.inline.background":   "#5d88af33",
+    "code.inline.outline":      "#5d88af66",
+
+    "blockquote.foreground":    "#e4e4e7",
+    "blockquote.border":        "#5d88af",
+    "blockquote.background":    "#18181b",
+
+    "table.border":             "#436d92bf",
+    "table.header.background":  "#18181b",
+    "table.header.foreground":  "#5d88af",
+
+    "hr.foreground":            "#5d88af26",
+
+    "syntax.keyword":           "#739abd",
+    "syntax.string":            "#be917f",
+    "syntax.comment":           "#636363",
+    "syntax.number":            "#8aa168",
+    "syntax.function":          "#a7a776",
+    "syntax.type":              "#59ab99",
+    "syntax.variable":          "#6ca1bc",
+    "syntax.constant":          "#509fbe",
+    "syntax.operator":          "#adadad",
+    "syntax.regex":             "#a16362",
+    "syntax.tag":               "#6ca1bc"
+  }
+}

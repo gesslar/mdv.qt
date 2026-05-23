@@ -13,6 +13,7 @@
 #include <QPaintEvent>
 #include <QPainter>
 #include <QTabBar>
+#include <QUrl>
 
 #include "DocumentView.h"
 #include "EditorArea.h"
@@ -185,37 +186,50 @@ void EditorPane::onCurrentChanged(int index) {
 }
 
 void EditorPane::dragEnterEvent(QDragEnterEvent *e) {
-  if (!e->mimeData()->hasFormat(TabBar::mimeType())) return;
-
-  // Cache source so we don't decode on every dragMove.
-  QByteArray payload = e->mimeData()->data(TabBar::mimeType());
-  QDataStream ds(payload);
-  qintptr ptr = 0;
-  qint32 idx = -1;
-  ds >> ptr >> idx;
-  m_dragSource = reinterpret_cast<EditorPane *>(ptr);
-
-  e->acceptProposedAction();
-}
-
-void EditorPane::dragMoveEvent(QDragMoveEvent *e) {
-  if (!e->mimeData()->hasFormat(TabBar::mimeType())) return;
-
-  const DropZone zone = zoneAt(e->position().toPoint());
-
-  // Same-pane center: the tab is already here, nothing to do. No
-  // overlay, ignore the move so the OS shows a "no-drop" cursor.
-  const bool noop = zone == ZoneNone ||
-                    (m_dragSource == this && zone == ZoneTab);
-
-  if (noop) {
-    hideDropOverlay();
-    e->ignore();
+  if (e->mimeData()->hasFormat(TabBar::mimeType())) {
+    QByteArray payload = e->mimeData()->data(TabBar::mimeType());
+    QDataStream ds(payload);
+    qintptr ptr = 0;
+    qint32 idx = -1;
+    ds >> ptr >> idx;
+    m_dragSource = reinterpret_cast<EditorPane *>(ptr);
+    e->acceptProposedAction();
     return;
   }
 
-  showDropOverlay(zone);
-  e->acceptProposedAction();
+  // OS file drag — accept anything that carries local file URLs. We
+  // don't show the split-zone overlay for OS drops; the entire pane
+  // is the drop target.
+  if (e->mimeData()->hasUrls()) {
+    for (const QUrl &url : e->mimeData()->urls()) {
+      if (url.isLocalFile()) {
+        e->acceptProposedAction();
+        return;
+      }
+    }
+  }
+}
+
+void EditorPane::dragMoveEvent(QDragMoveEvent *e) {
+  if (e->mimeData()->hasFormat(TabBar::mimeType())) {
+    const DropZone zone = zoneAt(e->position().toPoint());
+    // Same-pane center: tab is already here. No overlay; ignore the
+    // move so the OS shows a "no-drop" cursor.
+    const bool noop = zone == ZoneNone ||
+                      (m_dragSource == this && zone == ZoneTab);
+    if (noop) {
+      hideDropOverlay();
+      e->ignore();
+      return;
+    }
+    showDropOverlay(zone);
+    e->acceptProposedAction();
+    return;
+  }
+
+  if (e->mimeData()->hasUrls()) {
+    e->acceptProposedAction();
+  }
 }
 
 void EditorPane::dragLeaveEvent(QDragLeaveEvent *) {
@@ -225,6 +239,24 @@ void EditorPane::dragLeaveEvent(QDragLeaveEvent *) {
 
 void EditorPane::dropEvent(QDropEvent *e) {
   hideDropOverlay();
+
+  // OS file drop — handled separately from internal tab drags.
+  if (e->mimeData()->hasUrls() &&
+      !e->mimeData()->hasFormat(TabBar::mimeType())) {
+    QStringList paths;
+    for (const QUrl &url : e->mimeData()->urls()) {
+      if (url.isLocalFile()) paths << url.toLocalFile();
+    }
+    if (!paths.isEmpty()) {
+      // Take focus so this pane becomes active before the open routes
+      // through openFile() — that way the file opens in the pane the
+      // user actually dropped on.
+      setFocus();
+      emit filesDropped(paths);
+      e->acceptProposedAction();
+    }
+    return;
+  }
 
   if (!e->mimeData()->hasFormat(TabBar::mimeType())) return;
 

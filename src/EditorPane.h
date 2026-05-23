@@ -62,6 +62,10 @@ signals:
   // moves (drag-out to another pane goes through takeDocument()).
   void tabClosed(const QString &filePath);
 
+  // Emitted when the user drops one or more file URLs onto this pane
+  // from the OS. The pane has already focused itself before emitting.
+  void filesDropped(const QStringList &paths);
+
 protected:
   void focusInEvent(QFocusEvent *e) override;
   void mousePressEvent(QMouseEvent *e) override;

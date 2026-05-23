@@ -1,0 +1,52 @@
+{
+  "name": "Corporate",
+  "type": "dark",
+
+  "spacing": {
+    "paragraph":   "1em",
+    "heading":     "1.5em",
+    "list.indent": "1.5em",
+    "code.pad":    "0.75em 1em",
+    "table.cell":  "0.5em 1em"
+  },
+
+  "colors": {
+    "text.foreground":          "#bebebe",
+    "text.background":          "#0f0f0f",
+    "text.muted":               "#006868",
+
+    "heading.foreground":       "#5dafae",
+    "heading.border":           "#00808066",
+
+    "link.foreground":          "#5dafae",
+    "link.underline":           "#00808040",
+
+    "code.foreground":          "#e4e4e7",
+    "code.background":          "#00808026",
+    "code.border":              "#008080bf",
+    "code.inline.background":   "#00808033",
+    "code.inline.outline":      "#00808066",
+
+    "blockquote.foreground":    "#e4e4e7",
+    "blockquote.border":        "#008080",
+    "blockquote.background":    "#18181b",
+
+    "table.border":             "#006868bf",
+    "table.header.background":  "#18181b",
+    "table.header.foreground":  "#5dafae",
+
+    "hr.foreground":            "#00808026",
+
+    "syntax.keyword":           "#739abd",
+    "syntax.string":            "#be917f",
+    "syntax.comment":           "#636363",
+    "syntax.number":            "#8aa168",
+    "syntax.function":          "#a7a776",
+    "syntax.type":              "#59ab99",
+    "syntax.variable":          "#6ca1bc",
+    "syntax.constant":          "#509fbe",
+    "syntax.operator":          "#adadad",
+    "syntax.regex":             "#a16362",
+    "syntax.tag":               "#6ca1bc"
+  }
+}

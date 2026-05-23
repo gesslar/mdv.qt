@@ -20,6 +20,13 @@ endif()
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
 
+# md4c (CommonMark + GFM markdown parser). We use the C library directly
+# rather than QTextDocument::setMarkdown because the latter bakes explicit
+# character formats into the document that override CSS supplied via
+# setDefaultStyleSheet.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(MD4C_HTML REQUIRED IMPORTED_TARGET md4c-html)
+
 qt_standard_project_setup()
 
 qt_add_executable(mdv
@@ -36,9 +43,16 @@ qt_add_executable(mdv
     src/TabBar.h
     src/Theme.cpp
     src/Theme.h
+    src/ContentTheme.cpp
+    src/ContentTheme.h
+    src/Markdown.cpp
+    src/Markdown.h
+    src/PreferencesDialog.cpp
+    src/PreferencesDialog.h
+    resources/resources.qrc
 )
 
-target_link_libraries(mdv PRIVATE Qt6::Widgets)
+target_link_libraries(mdv PRIVATE Qt6::Widgets PkgConfig::MD4C_HTML)
 
 target_include_directories(mdv PRIVATE src)
 

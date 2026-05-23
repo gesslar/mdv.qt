@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="/">
+    <file>content/content.qss.template</file>
+    <file>themes/blackboard.content.json</file>
+    <file>themes/bubblegum-goth.content.json</file>
+    <file>themes/corporate.content.json</file>
+  </qresource>
+</RCC>
