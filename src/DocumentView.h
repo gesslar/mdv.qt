@@ -1,0 +1,62 @@
+#pragma once
+
+#include <QPoint>
+#include <QWidget>
+
+class QTextBrowser;
+
+class DocumentView : public QWidget {
+  Q_OBJECT
+
+public:
+  explicit DocumentView(QWidget *parent = nullptr);
+
+  bool loadFile(const QString &path);
+
+  // Canonical (symlink-resolved) absolute path, or empty if no file is loaded.
+  QString filePath() const { return m_filePath; }
+
+  // Basename of the loaded file, or a placeholder if none.
+  QString displayName() const;
+
+  // Document-relative scroll anchor: the character offset at the top of
+  // the visible viewport. Stable across viewport-size changes (a wider
+  // or narrower pane reflows the text, so raw scrollbar values aren't
+  // meaningful — but the position of "this character" in the document
+  // is). Used by "Split" actions to land the new pane at the same place
+  // in the document as the source, regardless of pane width.
+  int topAnchor() const;
+
+  // Scroll so the given character position is at the top of the viewport.
+  // Deferred until the document's layout has been computed.
+  void scrollToAnchor(int position);
+
+  // Tab metadata — toggled via the tab context menu. The Pin and Watch
+  // flags only carry state for now; nothing else reacts to them yet.
+  bool isPinned() const { return m_pinned; }
+  void setPinned(bool on) { m_pinned = on; }
+
+  bool isWatching() const { return m_watching; }
+  void setWatching(bool on) { m_watching = on; }
+
+signals:
+  void fileLoaded(const QString &canonicalPath);
+
+private slots:
+  void onContextMenuRequested(const QPoint &pos);
+
+private:
+  QTextBrowser *m_browser = nullptr;
+  QString m_filePath;
+  bool m_pinned = false;
+  bool m_watching = true;
+
+  // Pending scroll anchor state used by scrollToAnchor() to defer until
+  // QTextDocument has laid out enough to know each block's geometry.
+  // -1 = no pending anchor.
+  int m_pendingAnchor = -1;
+  QMetaObject::Connection m_pendingScrollConn;
+  class QTimer *m_pendingAnchorTimer = nullptr;
+
+  bool tryApplyAnchor();
+};
