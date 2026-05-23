@@ -12,7 +12,7 @@
 
   "colors": {
     "text.foreground":          "#bebebe",
-    "text.background":          "#0f0f0f",
+    "text.background":          "#ff0000",
     "text.muted":               "#d750b2",
 
     "heading.foreground":       "#ff75d7",

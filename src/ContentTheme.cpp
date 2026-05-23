@@ -146,7 +146,17 @@ void ContentTheme::reload() {
   const QString name =
       QSettings().value(QStringLiteral("theme/content"), QStringLiteral("blackboard"))
           .toString();
-  loadBundled(name);
+  if (loadBundled(name)) return;
+
+  qWarning("ContentTheme: failed to load bundled theme '%s'",
+           qPrintable(name));
+
+  // Fall back to the canonical default so the document still renders
+  // with a sensible theme rather than an empty stylesheet (which would
+  // emit invalid CSS like `color: ;` for every @{...} placeholder).
+  if (name != QStringLiteral("blackboard")) {
+    loadBundled(QStringLiteral("blackboard"));
+  }
 }
 
 QStringList ContentTheme::availableThemes() {
