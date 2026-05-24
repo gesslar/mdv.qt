@@ -1,0 +1,62 @@
+# mdv
+
+A fast, minimal desktop Markdown viewer built with Qt 6 and C++.
+
+## Features
+
+- **Markdown rendering** — CommonMark + GitHub-flavored (tables, task lists,
+  strikethrough, autolinks) via [md4c](https://github.com/mity/md4c)
+- **Automatic syntax highlighting** for fenced code blocks via
+  [KSyntaxHighlighting](https://invent.kde.org/frameworks/syntax-highlighting),
+  colored from the active theme
+- **Content themes** — swappable color/spacing themes for the rendered
+  document; three dark themes bundled, and you can author your own
+  (see [THEMING.md](THEMING.md))
+- **Tabs and splits** — open documents in tabs, split a pane right or down,
+  drag tabs between panes
+- **Drag-and-drop** — drop markdown files onto the window to open them
+- **Recent files** — with reopen-last-closed and reopen-all
+- **Familiar shortcuts** — `Ctrl+W` close, `Ctrl+Shift+T` reopen, `Ctrl+\`
+  split, `Ctrl+PgUp`/`PgDn` to cycle tabs, and more
+- **Preferences** — choose the content theme and the prose/monospace fonts;
+  `Ctrl`+scroll to zoom
+- **CLI** — pass one or more file paths: `mdv a.md b.md`
+
+## Building
+
+See **[DEVELOPMENT.md](DEVELOPMENT.md)** for prerequisites (Qt 6,
+KSyntaxHighlighting, CMake, Ninja). Then:
+
+```bash
+make            # dev build → build/mdv
+make run        # build, then launch
+```
+
+## Usage
+
+```bash
+mdv                      # empty window
+mdv README.md            # open a file
+mdv ~/Documents/*.md     # one tab per file
+```
+
+Or drag a markdown file onto the window.
+
+## Theming
+
+Content themes control the **colors and spacing** of the rendered document
+(fonts come from Preferences, so a theme is portable across font choices).
+Three dark themes ship with mdv; authoring your own is a small JSON file —
+see **[THEMING.md](THEMING.md)**.
+
+## License
+
+`mdv` is released under the [0BSD](LICENSE.txt) license.
+
+It builds on these components, under their own licenses:
+
+| Dependency | License |
+| --- | --- |
+| [Qt 6](https://www.qt.io/) (Widgets) | LGPL-3.0 |
+| [md4c](https://github.com/mity/md4c) | MIT |
+| [KSyntaxHighlighting](https://invent.kde.org/frameworks/syntax-highlighting) | MIT |
