@@ -5,6 +5,7 @@
 #include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMimeData>
@@ -119,7 +120,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   bindShortcut(tr("Move Tab Left"), tr("Ctrl+Shift+PgUp"),
                &MainWindow::onMoveTabLeft);
 
-  statusBar()->showMessage(tr("No file open."));
+  // Persistent status text lives in a normal status-bar widget, not a
+  // showMessage() temporary. Hovering a menu posts an (empty) status-tip
+  // message that would overwrite a temporary and never restore it; a normal
+  // widget is merely hidden under any temporary message and reappears once
+  // the menu closes.
+  m_statusLabel = new QLabel(tr("No file open."), this);
+  statusBar()->addWidget(m_statusLabel);
 }
 
 MainWindow::~MainWindow() = default;
@@ -160,7 +167,14 @@ void MainWindow::onOpen() {
 
 DocumentView *MainWindow::openFile(const QString &path) {
   DocumentView *doc = m_area->openFile(path);
-  if (doc) addToRecentFiles(doc->filePath());
+  if (doc) {
+    addToRecentFiles(doc->filePath());
+  } else if (!QFileInfo::exists(path)) {
+    // The open failed because the file is gone (vs. a transient read error
+    // on a file that still exists). Drop the dead entry from the recent list
+    // so it doesn't keep offering a file the user can't open.
+    removeFromRecentFiles(path);
+  }
   return doc;
 }
 
@@ -225,11 +239,11 @@ void MainWindow::onMoveTabLeft() {
 void MainWindow::onCurrentDocumentChanged(DocumentView *doc) {
   if (!doc) {
     setWindowTitle(tr("mdv"));
-    statusBar()->showMessage(tr("No file open."));
+    m_statusLabel->setText(tr("No file open."));
     return;
   }
   setWindowTitle(tr("%1 — mdv").arg(doc->displayName()));
-  statusBar()->showMessage(doc->filePath());
+  m_statusLabel->setText(doc->filePath());
 }
 
 void MainWindow::loadRecentFiles() {
@@ -250,6 +264,11 @@ void MainWindow::addToRecentFiles(const QString &canonical) {
   saveRecentFiles();
   // No explicit rebuildRecentMenu() here — the submenu's aboutToShow
   // handler rebuilds on demand.
+}
+
+void MainWindow::removeFromRecentFiles(const QString &path) {
+  // aboutToShow rebuilds the submenu, so a save is all that's needed here.
+  if (m_recentFiles.removeAll(path) > 0) saveRecentFiles();
 }
 
 void MainWindow::rebuildRecentMenu() {

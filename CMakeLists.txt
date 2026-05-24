@@ -81,3 +81,17 @@ set_target_properties(mdv PROPERTIES
     WIN32_EXECUTABLE ON
     MACOSX_BUNDLE ON
 )
+
+# Linux desktop integration: install the launcher and a themed icon so the
+# Wayland/X11 compositor can match the running window (app_id "mdv") to its
+# icon. On Wayland the dock icon comes ONLY from this .desktop match, never
+# from QApplication::setWindowIcon(). No-op for Windows/macOS packaging.
+if(UNIX AND NOT APPLE)
+    include(GNUInstallDirs)
+    install(TARGETS mdv RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    install(FILES resources/mdv.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES resources/icons/mdv.png
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/512x512/apps
+        RENAME mdv.png)
+endif()

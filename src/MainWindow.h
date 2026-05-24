@@ -6,6 +6,7 @@
 class DocumentView;
 class EditorArea;
 class PreferencesDialog;
+class QLabel;
 class QMenu;
 
 class MainWindow : public QMainWindow {
@@ -44,8 +45,10 @@ private:
   void loadRecentFiles();
   void saveRecentFiles();
   void addToRecentFiles(const QString &canonical);
+  void removeFromRecentFiles(const QString &path);
 
   EditorArea *m_area = nullptr;
+  QLabel *m_statusLabel = nullptr;
   QMenu *m_recentMenu = nullptr;
   QStringList m_recentFiles;
   PreferencesDialog *m_preferencesDialog = nullptr;
