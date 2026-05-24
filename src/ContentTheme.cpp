@@ -55,8 +55,19 @@ QString compositeOver(const QString &fg, const QString &bg) {
   if (!top.isValid()) return fg;
 
   const qreal a = top.alphaF();
+  if (a >= 1.0) return top.name(QColor::HexRgb);  // already opaque
+
   const QColor base(coerceColor(bg));
-  if (a >= 1.0 || !base.isValid()) return top.name(QColor::HexRgb);
+  if (!base.isValid()) {
+    // No backdrop to flatten onto (the theme omitted text.background). Keep the
+    // author's translucent tint — the correct hue, even if it can't dodge the
+    // per-line seam — rather than silently dropping alpha to a saturated shade.
+    // coerceColor (not raw fg) so Qt still parses the #RRGGBBAA ordering right.
+    qWarning("ContentTheme: block background '%s' is translucent but "
+             "text.background is missing; leaving it translucent",
+             qPrintable(fg));
+    return coerceColor(fg);
+  }
 
   const auto mix = [a](int t, int b) {
     return qRound(b * (1.0 - a) + t * a);
