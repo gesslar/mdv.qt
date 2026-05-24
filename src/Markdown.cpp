@@ -49,18 +49,27 @@ QString highlightCodeBlocks(const QString &html) {
     out.append(QStringView(html).sliced(last, m.capturedStart() - last));
     last = m.capturedEnd();
 
+    // md4c terminates code-block content with a newline, which renders as a
+    // trailing blank line inside the <pre>; drop exactly one.
+    QString inner = m.captured(2);
+    if (inner.endsWith(QLatin1Char('\n'))) inner.chop(1);
+
     // md4c puts the whole info string in the class; the language is its first
     // whitespace-delimited token.
-    const QString info = m.captured(1);
-    const QString lang = info.split(QLatin1Char(' '), Qt::SkipEmptyParts).value(0);
+    const QString lang =
+        m.captured(1).split(QLatin1Char(' '), Qt::SkipEmptyParts).value(0);
     if (lang.isEmpty()) {
-      out.append(m.captured(0));  // leave unlabeled blocks untouched
+      // Unlabeled / unknown blocks aren't highlighted; re-emit the already-
+      // escaped content with the trailing newline trimmed.
+      out.append(QStringLiteral("<pre><code>"));
+      out.append(inner);
+      out.append(QStringLiteral("</code></pre>"));
       continue;
     }
 
     out.append(QStringLiteral("<pre><code class=\"language-%1\">")
                    .arg(lang.toHtmlEscaped()));
-    out.append(highlightCode(unescapeHtml(m.captured(2)), lang));
+    out.append(highlightCode(unescapeHtml(inner), lang));
     out.append(QStringLiteral("</code></pre>"));
   }
   out.append(QStringView(html).sliced(last));

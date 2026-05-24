@@ -92,6 +92,11 @@ EditorPane::EditorPane(QWidget *parent) : QTabWidget(parent) {
 }
 
 int EditorPane::addDocument(DocumentView *doc) {
+  // Relay link-driven opens up toward the window. UniqueConnection because a
+  // tab can pass through addDocument again when dragged between panes.
+  connect(doc, &DocumentView::openFileRequested, this,
+          &EditorPane::openFileRequested, Qt::UniqueConnection);
+
   const int idx = addTab(doc, doc->displayName());
   setTabToolTip(idx, doc->filePath());
   setCurrentIndex(idx);

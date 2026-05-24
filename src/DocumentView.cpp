@@ -2,6 +2,8 @@
 
 #include <QAbstractTextDocumentLayout>
 #include <QColor>
+#include <QDesktopServices>
+#include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFont>
@@ -15,6 +17,7 @@
 #include <QTextCursor>
 #include <QTextStream>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include "ContentTheme.h"
@@ -26,7 +29,12 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   layout->setContentsMargins(0, 0, 0, 0);
 
   m_browser = new QTextBrowser(this);
-  m_browser->setOpenExternalLinks(true);
+  // Handle every link click ourselves. With openLinks left on, QTextBrowser
+  // navigates the view onto the target (setSource) — which for a local file
+  // wipes the rendered document. onAnchorClicked() classifies instead.
+  m_browser->setOpenLinks(false);
+  connect(m_browser, &QTextBrowser::anchorClicked, this,
+          &DocumentView::onAnchorClicked);
   m_browser->setContextMenuPolicy(Qt::CustomContextMenu);
   // Disable QTextBrowser's own drop handling so file URL drops bubble
   // up to the EditorPane (which interprets them as "open this file")
@@ -141,6 +149,37 @@ void DocumentView::applyDocumentPalette() {
   if (!bg.isEmpty()) p.setColor(QPalette::Base, QColor(bg));
   if (!fg.isEmpty()) p.setColor(QPalette::Text, QColor(fg));
   m_browser->setPalette(p);
+}
+
+void DocumentView::onAnchorClicked(const QUrl &url) {
+  const QString scheme = url.scheme();
+
+  // External: any non-file scheme (http/https/mailto/…) → system handler.
+  if (!scheme.isEmpty() && scheme != QLatin1String("file")) {
+    QDesktopServices::openUrl(url);
+    return;
+  }
+
+  // In-document anchor (#heading). Heading ids aren't generated yet (that
+  // lands with the TOC work), so this currently finds nothing and no-ops —
+  // wired here so it lights up once the ids exist.
+  if (url.path().isEmpty() && url.hasFragment()) {
+    m_browser->scrollToAnchor(url.fragment());
+    return;
+  }
+
+  // Local file: resolve relative to this document's directory and open it as
+  // a new tab. Any #fragment is dropped — we just open the target file.
+  const QString rawPath =
+      (scheme == QLatin1String("file")) ? url.toLocalFile() : url.path();
+  if (rawPath.isEmpty()) return;
+
+  const QString base = QFileInfo(m_filePath).absolutePath();
+  const QString resolved =
+      QDir::isAbsolutePath(rawPath)
+          ? QDir::cleanPath(rawPath)
+          : QDir::cleanPath(base + QLatin1Char('/') + rawPath);
+  emit openFileRequested(resolved);
 }
 
 int DocumentView::topAnchor() const {

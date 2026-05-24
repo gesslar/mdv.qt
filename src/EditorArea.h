@@ -56,6 +56,10 @@ signals:
   // route through their normal openFile path.
   void filesDropped(const QStringList &paths);
 
+  // Re-emission of a pane's openFileRequested — a local-file link was
+  // clicked; subscribers open it through their normal openFile path.
+  void openFileRequested(const QString &path);
+
 private slots:
   void onPaneActivated();
   void onPaneEmpty();

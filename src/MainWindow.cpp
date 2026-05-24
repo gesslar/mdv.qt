@@ -36,6 +36,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
           [this](const QStringList &paths) {
             for (const QString &p : paths) openFile(p);
           });
+  // A local-file link clicked in a document opens as a new tab (and lands in
+  // Recent Files) through the same path as any other open.
+  connect(m_area, &EditorArea::openFileRequested, this,
+          [this](const QString &path) { openFile(path); });
 
   // Catch-all for drops that miss the EditorArea (menubar, status bar,
   // any chrome). Drops anywhere on the window get routed to the

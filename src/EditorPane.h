@@ -66,6 +66,10 @@ signals:
   // from the OS. The pane has already focused itself before emitting.
   void filesDropped(const QStringList &paths);
 
+  // Re-emission of a contained document's openFileRequested — a local-file
+  // link was clicked and should open as a new tab.
+  void openFileRequested(const QString &path);
+
 protected:
   void focusInEvent(QFocusEvent *e) override;
   void mousePressEvent(QMouseEvent *e) override;
