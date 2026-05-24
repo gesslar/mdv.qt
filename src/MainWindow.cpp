@@ -169,11 +169,20 @@ DocumentView *MainWindow::openFile(const QString &path) {
   DocumentView *doc = m_area->openFile(path);
   if (doc) {
     addToRecentFiles(doc->filePath());
-  } else if (!QFileInfo::exists(path)) {
-    // The open failed because the file is gone (vs. a transient read error
-    // on a file that still exists). Drop the dead entry from the recent list
-    // so it doesn't keep offering a file the user can't open.
-    removeFromRecentFiles(path);
+    return doc;
+  }
+
+  // Open failed. If the file is simply gone (vs. a transient read error on a
+  // file that still exists), drop the dead entry from the recent list. Recent
+  // entries are stored in the canonical-else-absolute form DocumentView uses,
+  // so normalize `path` the same way before matching — a relative or CLI path
+  // otherwise won't match the canonical stored string. canonicalFilePath() is
+  // empty for a missing file, so the absolute form is what matches here.
+  const QFileInfo info(path);
+  if (!info.exists()) {
+    QString stored = info.canonicalFilePath();
+    if (stored.isEmpty()) stored = info.absoluteFilePath();
+    removeFromRecentFiles(stored);
   }
   return doc;
 }
