@@ -3,7 +3,11 @@
 #include <md4c-html.h>
 
 #include <QByteArray>
+#include <QChar>
 #include <QLoggingCategory>
+#include <QRegularExpression>
+
+#include "Highlighter.h"
 
 namespace mdv {
 
@@ -14,6 +18,53 @@ Q_LOGGING_CATEGORY(lcMarkdown, "mdv.markdown")
 void appendChunk(const MD_CHAR *text, MD_SIZE size, void *userData) {
   auto *out = static_cast<QByteArray *>(userData);
   out->append(text, static_cast<int>(size));
+}
+
+// Reverse md4c's HTML escaping of code-block content so we can re-tokenize it.
+// &amp; must come last so an already-decoded "&" isn't re-interpreted.
+QString unescapeHtml(QString s) {
+  s.replace(QLatin1String("&lt;"), QLatin1String("<"));
+  s.replace(QLatin1String("&gt;"), QLatin1String(">"));
+  s.replace(QLatin1String("&quot;"), QLatin1String("\""));
+  s.replace(QLatin1String("&#39;"), QLatin1String("'"));
+  s.replace(QLatin1String("&amp;"), QLatin1String("&"));
+  return s;
+}
+
+// Run each fenced code block that carries a language through the syntax
+// highlighter. Blocks without a language are left exactly as md4c emitted them
+// (KSyntaxHighlighting has no content-based auto-detection like highlight.js).
+QString highlightCodeBlocks(const QString &html) {
+  static const QRegularExpression re(
+      QStringLiteral(
+          "<pre><code(?: class=\"language-([^\"]*)\")?>(.*?)</code></pre>"),
+      QRegularExpression::DotMatchesEverythingOption);
+
+  QString out;
+  out.reserve(html.size());
+  qsizetype last = 0;
+  QRegularExpressionMatchIterator it = re.globalMatch(html);
+  while (it.hasNext()) {
+    const QRegularExpressionMatch m = it.next();
+    out.append(QStringView(html).sliced(last, m.capturedStart() - last));
+    last = m.capturedEnd();
+
+    // md4c puts the whole info string in the class; the language is its first
+    // whitespace-delimited token.
+    const QString info = m.captured(1);
+    const QString lang = info.split(QLatin1Char(' '), Qt::SkipEmptyParts).value(0);
+    if (lang.isEmpty()) {
+      out.append(m.captured(0));  // leave unlabeled blocks untouched
+      continue;
+    }
+
+    out.append(QStringLiteral("<pre><code class=\"language-%1\">")
+                   .arg(lang.toHtmlEscaped()));
+    out.append(highlightCode(unescapeHtml(m.captured(2)), lang));
+    out.append(QStringLiteral("</code></pre>"));
+  }
+  out.append(QStringView(html).sliced(last));
+  return out;
 }
 
 }  // namespace
@@ -44,7 +95,7 @@ QString markdownToHtml(const QString &markdown) {
     return QStringLiteral("<pre>%1</pre>").arg(markdown.toHtmlEscaped());
   }
 
-  return QString::fromUtf8(html);
+  return highlightCodeBlocks(QString::fromUtf8(html));
 }
 
 }  // namespace mdv

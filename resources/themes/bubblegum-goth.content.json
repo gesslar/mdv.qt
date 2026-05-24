@@ -13,13 +13,11 @@
   "colors": {
     "text.foreground":          "#bebebe",
     "text.background":          "#0f0f0f",
-    "text.muted":               "#d750b2",
 
     "heading.foreground":       "#ff75d7",
     "heading.border":           "#ff75d766",
 
     "link.foreground":          "#ffb9ff",
-    "link.underline":           "#ff75d740",
 
     "code.foreground":          "#e4e4e7",
     "code.background":          "#ff75d726",
@@ -38,8 +36,10 @@
     "hr.foreground":            "#ff75d726",
 
     "syntax.keyword":           "#739abd",
+    "syntax.keyword.style":     "bold",
     "syntax.string":            "#be917f",
     "syntax.comment":           "#636363",
+    "syntax.comment.style":     "italic",
     "syntax.number":            "#8aa168",
     "syntax.function":          "#a7a776",
     "syntax.type":              "#59ab99",
@@ -47,6 +47,11 @@
     "syntax.constant":          "#509fbe",
     "syntax.operator":          "#adadad",
     "syntax.regex":             "#a16362",
-    "syntax.tag":               "#6ca1bc"
+
+    "syntax.error":             "#c25b54",
+    "syntax.error.style":       "bold",
+    "syntax.warning":           "#c8985a",
+    "syntax.alert":             "#cdb968",
+    "syntax.alert.style":       "bold italic"
   }
 }

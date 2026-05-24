@@ -29,4 +29,7 @@ CMakeLists.txt.user*
 # OS
 .DS_Store
 Thumbs.db
+
+# My things and stuff and such
 work/
+qt.bash
