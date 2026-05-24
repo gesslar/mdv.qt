@@ -3,22 +3,25 @@
 ## Prerequisites
 
 - **Qt 6.5 or newer** (Widgets module)
+- **md4c** — CommonMark + GFM markdown parser
 - **KSyntaxHighlighting** (KDE Frameworks 6) — code-block syntax highlighting
 - **CMake 3.21 or newer**
 - **Ninja** (the build generator used here)
 - A C++20 compiler — GCC 11+, Clang 14+, MSVC 2022
 
-> md4c is fetched and built in-tree by CMake, so it needs no package.
-> KSyntaxHighlighting is taken from the system (Linux/macOS). Windows bundling
-> is planned but not yet wired, so Windows builds currently need KF6
-> SyntaxHighlighting provided to CMake yourself.
+> The rule for the two non-Qt deps: take them from the system package manager
+> wherever it has them. On Linux that's both (install with the commands below).
+> md4c has no package on Windows, so CMake fetches and builds it in-tree there —
+> nothing to install. KSyntaxHighlighting isn't carried by the Qt installer on
+> Windows or by Homebrew on macOS; install it via KDE Craft (or MacPorts) and
+> point CMake at it with `-DCMAKE_PREFIX_PATH`. The per-platform steps are below.
 
 ## Installing dependencies
 
 ### Fedora
 
 ```bash
-sudo dnf install qt6-qtbase-devel kf6-syntax-highlighting-devel cmake ninja-build gcc-c++
+sudo dnf install qt6-qtbase-devel md4c-devel kf6-syntax-highlighting-devel cmake ninja-build gcc-c++
 ```
 
 Add `qt-creator gdb clang-tools-extra` if you want the IDE and debugger.
@@ -26,7 +29,7 @@ Add `qt-creator gdb clang-tools-extra` if you want the IDE and debugger.
 ### Debian / Ubuntu
 
 ```bash
-sudo apt install qt6-base-dev libkf6syntaxhighlighting-dev cmake ninja-build g++
+sudo apt install qt6-base-dev libmd4c-dev libkf6syntaxhighlighting-dev cmake ninja-build g++
 # Optional IDE:
 sudo apt install qtcreator
 ```
@@ -34,7 +37,7 @@ sudo apt install qtcreator
 ### Arch
 
 ```bash
-sudo pacman -S qt6-base syntax-highlighting cmake ninja gcc qtcreator
+sudo pacman -S qt6-base md4c syntax-highlighting cmake ninja gcc qtcreator
 ```
 
 ### macOS
@@ -42,13 +45,13 @@ sudo pacman -S qt6-base syntax-highlighting cmake ninja gcc qtcreator
 The official **[Qt online installer](https://www.qt.io/download-qt-installer)** is the easiest path. Pick Qt 6.5+ with the Widgets module. Then:
 
 ```bash
-brew install cmake ninja
+brew install md4c cmake ninja
 ```
 
 Or via Homebrew end-to-end:
 
 ```bash
-brew install qt cmake ninja
+brew install qt md4c cmake ninja
 ```
 
 (Homebrew's `qt` is sometimes a release behind upstream — fine for this project, but verify with `qmake6 --version`.)
@@ -60,6 +63,23 @@ KSyntaxHighlighting (KDE Frameworks 6) isn't in Homebrew core; on macOS install 
 Install the official **[Qt online installer](https://www.qt.io/download-qt-installer)** and select Qt 6.5+ with **MSVC 2022 64-bit** (or MinGW if you prefer). The installer also bundles CMake, Ninja, and Qt Creator.
 
 If you'd rather use system tooling: install **Visual Studio 2022** (with the "Desktop development with C++" workload) and a standalone CMake.
+
+**md4c** has no Windows package, so CMake fetches and builds it in-tree — nothing to install.
+
+**KSyntaxHighlighting** isn't bundled by the Qt installer. Get it from **[KDE Craft](https://community.kde.org/Craft)**, KDE's build system for Windows (it pulls in extra-cmake-modules and the syntax/theme data for you):
+
+```powershell
+# In a Craft shell, after the one-time Craft setup:
+craft kf6-syntax-highlighting
+```
+
+Then point CMake at the Craft prefix when configuring:
+
+```powershell
+cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=C:/CraftRoot
+```
+
+(Use your actual `CraftRoot` path. The same `-DCMAKE_PREFIX_PATH` trick is how the macOS MacPorts/Craft install gets found.)
 
 ## Building
 

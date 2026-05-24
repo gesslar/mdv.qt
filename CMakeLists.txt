@@ -19,39 +19,45 @@ endif()
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
 
-# Code-block syntax highlighting. Taken from the system on Linux/macOS; on
-# Windows this will need to be bundled/built statically at packaging time
-# (mirroring the md4c strategy below). KSyntaxHighlighting tokenizes code and
-# we map its default styles onto the active content theme's syntax.* colors.
-find_package(KF6SyntaxHighlighting REQUIRED)
+# --- Non-Qt dependencies ------------------------------------------------------
+#
+# Acquisition rule for build-time deps: take them from the system package
+# manager wherever it has them (Linux/macOS), and only build in-tree where the
+# platform has no package (Windows md4c). Distribution linkage — which .so the
+# .deb pulls, which .dll the installer bundles — is a packaging concern handled
+# downstream, NOT here. DEVELOPMENT.md has the per-platform install steps.
 
 # md4c (CommonMark + GFM markdown parser). We use the C library directly
 # rather than QTextDocument::setMarkdown because the latter bakes explicit
 # character formats into the document that override CSS supplied via
 # setDefaultStyleSheet.
 #
-# Fetched and built in-tree so Windows/macOS/Linux all share the same
-# dependency story without a system pkg-config install.
-include(FetchContent)
-# Linkage choice per platform matches how we ship:
-#   Windows  — static, so the installer ships a single self-contained mdv.exe.
-#   Linux/mac — shared, so .deb/.rpm/Homebrew can swap our in-tree build for
-#               a system md4c at package time without changing link semantics.
-# Cache + FORCE because md4c's CMakeLists calls option(BUILD_SHARED_LIBS …)
-# under CMP0077 OLD, which would otherwise clobber a plain set().
+# The system package exports the namespaced imported target md4c::md4c-html;
+# FetchContent exports the plain target md4c-html. The ${MD4C} indirection
+# papers over that difference so the link line stays uniform.
 if(WIN32)
-    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+    # No dnf/brew/vcpkg-by-default for md4c here — fetch & build it just to dev.
+    include(FetchContent)
+    set(BUILD_MD2HTML_EXECUTABLE OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        md4c
+        GIT_REPOSITORY https://github.com/mity/md4c.git
+        GIT_TAG release-0.5.3
+        GIT_SHALLOW TRUE
+    )
+    FetchContent_MakeAvailable(md4c)
+    set(MD4C md4c-html)
 else()
-    set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
+    find_package(md4c REQUIRED)
+    set(MD4C md4c::md4c-html)
 endif()
-set(BUILD_MD2HTML_EXECUTABLE OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(
-    md4c
-    GIT_REPOSITORY https://github.com/mity/md4c.git
-    GIT_TAG release-0.5.3
-    GIT_SHALLOW TRUE
-)
-FetchContent_MakeAvailable(md4c)
+
+# KSyntaxHighlighting — code-block tokenizer; we map its default styles onto
+# the active content theme's syntax.* colors. find_package resolves it on
+# every platform, but the Qt installer doesn't bundle KF6: on Windows install
+# it via KDE Craft and on macOS via MacPorts/Craft, then point CMake at it with
+# -DCMAKE_PREFIX_PATH=<prefix>. See DEVELOPMENT.md for the per-platform steps.
+find_package(KF6SyntaxHighlighting REQUIRED)
 
 qt_standard_project_setup()
 
@@ -80,7 +86,7 @@ qt_add_executable(mdv
     resources/resources.qrc
 )
 
-target_link_libraries(mdv PRIVATE Qt6::Widgets md4c-html KF6::SyntaxHighlighting)
+target_link_libraries(mdv PRIVATE Qt6::Widgets ${MD4C} KF6::SyntaxHighlighting)
 
 target_include_directories(mdv PRIVATE src)
 
