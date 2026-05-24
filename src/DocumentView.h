@@ -4,6 +4,7 @@
 #include <QWidget>
 
 class QTextBrowser;
+class QUrl;
 
 class DocumentView : public QWidget {
   Q_OBJECT
@@ -59,8 +60,13 @@ public:
 signals:
   void fileLoaded(const QString &canonicalPath);
 
+  // A local-file link was clicked. The path is resolved (absolute, cleaned)
+  // against this document's directory; the owner opens it as a new tab.
+  void openFileRequested(const QString &path);
+
 private slots:
   void onContextMenuRequested(const QPoint &pos);
+  void onAnchorClicked(const QUrl &url);
 
 private:
   QTextBrowser *m_browser = nullptr;

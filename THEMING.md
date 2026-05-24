@@ -62,6 +62,12 @@ translucent borders and backgrounds.
 Keep `syntax.*` token colors **solid** (6-digit, no alpha) — they color text,
 where transparency isn't meaningful.
 
+Block-fill backgrounds (`code.background`, `blockquote.background`,
+`table.header.background`) may use alpha, but they're flattened onto
+`text.background` at load and render **opaque** — the document engine can't
+paint a translucent block fill without faint per-line seams. You author the
+tint normally; it just resolves to the exact color it would show over the page.
+
 ## Spacing keys
 
 | Key            | Applies to                                  |
@@ -162,3 +168,7 @@ MD040).
 
 See [`examples/`](examples/) for documents that exercise every element and
 language — open them and switch themes to check your work.
+
+Curious how these keys become the rendered stylesheet (placeholder resolution,
+the alpha handling, font wiring)? That's developer internals in
+[`docs/templating.md`](docs/templating.md).

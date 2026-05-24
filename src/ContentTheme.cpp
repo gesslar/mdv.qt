@@ -1,5 +1,6 @@
 #include "ContentTheme.h"
 
+#include <QColor>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -7,6 +8,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QRegularExpression>
+#include <QSet>
 #include <QSettings>
 #include <QStringList>
 
@@ -40,6 +42,28 @@ QString coerceColor(const QString &value) {
   const auto m = re.match(value);
   if (!m.hasMatch()) return value;
   return QStringLiteral("#%1%2").arg(m.captured(2), m.captured(1));
+}
+
+// Flatten a (possibly translucent) color onto an opaque backdrop, returning an
+// opaque "#rrggbb". QTextDocument fills a block background per text-line, and a
+// translucent fill compounds at the line overlaps into faint seams — so block
+// backgrounds are pre-composited over the page color rather than left with
+// alpha. Authors still write the natural tint; this is the exact color it would
+// render as on the page.
+QString compositeOver(const QString &fg, const QString &bg) {
+  const QColor top(coerceColor(fg));
+  if (!top.isValid()) return fg;
+
+  const qreal a = top.alphaF();
+  const QColor base(coerceColor(bg));
+  if (a >= 1.0 || !base.isValid()) return top.name(QColor::HexRgb);
+
+  const auto mix = [a](int t, int b) {
+    return qRound(b * (1.0 - a) + t * a);
+  };
+  return QColor(mix(top.red(), base.red()), mix(top.green(), base.green()),
+                mix(top.blue(), base.blue()))
+      .name(QColor::HexRgb);
 }
 
 }  // namespace
@@ -115,6 +139,19 @@ QString ContentTheme::resolveKey(const QString &key) const {
 
   if (key.startsWith(QStringLiteral("spacing."))) {
     return m_spacing.value(key.mid(8));  // strip "spacing."
+  }
+
+  // Block-fill backgrounds get flattened onto the page color: the document
+  // engine paints them per text-line and a translucent fill seams at the
+  // overlaps. Authors can still use alpha here; it just renders opaque.
+  static const QSet<QString> blockBackgrounds = {
+      QStringLiteral("code.background"),
+      QStringLiteral("blockquote.background"),
+      QStringLiteral("table.header.background"),
+  };
+  if (blockBackgrounds.contains(key)) {
+    return compositeOver(m_colors.value(key),
+                         m_colors.value(QStringLiteral("text.background")));
   }
 
   // Anything else is a color key. Bare ("text.foreground") in the
