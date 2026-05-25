@@ -1,0 +1,12 @@
+// Windows resource script. Embeds mdv.ico into mdv.exe so Explorer, the
+// taskbar, Start Menu shortcuts, and the Apps & Features (Add/Remove
+// Programs) entry all show the app icon — without an icon resource here,
+// they fall back to the generic "default exe" icon. Compiled by windres
+// (MinGW) or rc.exe (MSVC); CMake wires it in via target_sources() in
+// the if(WIN32) block of CMakeLists.txt.
+//
+// Resource ID 1 is the convention Explorer's icon extractor (ExtractIconEx
+// index 0) looks for first, so this is what NSIS shortcuts and the
+// DisplayIcon registry value pick up automatically when they reference
+// mdv.exe.
+1 ICON "icons/mdv.ico"
