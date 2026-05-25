@@ -44,7 +44,7 @@ QString highlightCodeBlocks(const QString &html) {
   out.reserve(html.size());
   qsizetype last = 0;
   QRegularExpressionMatchIterator it = re.globalMatch(html);
-  while (it.hasNext()) {
+  while(it.hasNext()) {
     const QRegularExpressionMatch m = it.next();
     out.append(QStringView(html).sliced(last, m.capturedStart() - last));
     last = m.capturedEnd();
@@ -52,8 +52,7 @@ QString highlightCodeBlocks(const QString &html) {
     // md4c terminates code-block content with a newline, which renders as a
     // trailing blank line inside the <pre>; drop exactly one.
     QString inner = m.captured(2);
-    if (inner.endsWith(QLatin1Char('\n')))
-      inner.chop(1);
+    if(inner.endsWith(QLatin1Char('\n'))) inner.chop(1);
 
     // md4c puts the whole info string in the class; the language is its first
     // whitespace-delimited token.
@@ -64,7 +63,7 @@ QString highlightCodeBlocks(const QString &html) {
     // elements like <pre>, so the cell is what carries the frame and the inset.
     // It also fills the background as one rectangle instead of the per-line
     // fill a <pre> background does — which is what caused the seam artifacts.
-    if (lang.isEmpty()) {
+    if(lang.isEmpty()) {
       // Unlabeled / unknown blocks aren't highlighted; re-emit the already-
       // escaped content with the trailing newline trimmed.
       out.append(QStringLiteral(
@@ -98,16 +97,15 @@ QString wrapBlockquotes(const QString &html) {
   out.reserve(html.size() + 64);
 
   int depth = 0;
-  qsizetype copied = 0; // everything before this index is already in `out`
+  qsizetype copied = 0;  // everything before this index is already in `out`
   qsizetype pos = 0;
-  while (pos < html.size()) {
+  while(pos < html.size()) {
     const qsizetype nextOpen = html.indexOf(open, pos);
     const qsizetype nextClose = html.indexOf(close, pos);
-    if (nextClose < 0)
-      break; // no more well-formed blockquotes
+    if(nextClose < 0) break;  // no more well-formed blockquotes
 
-    if (nextOpen >= 0 && nextOpen < nextClose) {
-      if (depth == 0) {
+    if(nextOpen >= 0 && nextOpen < nextClose) {
+      if(depth == 0) {
         // Flush the prose before this blockquote, then open the wrapper. The
         // blockquote's own markup is emitted when its matching close is found.
         out.append(QStringView(html).sliced(copied, nextOpen - copied));
@@ -118,7 +116,7 @@ QString wrapBlockquotes(const QString &html) {
       ++depth;
       pos = nextOpen + open.size();
     } else {
-      if (depth > 0 && --depth == 0) {
+      if(depth > 0 && --depth == 0) {
         const qsizetype end = nextClose + close.size();
         out.append(QStringView(html).sliced(copied, end - copied));
         out.append(QStringLiteral("</td></tr></table>"));
@@ -131,7 +129,7 @@ QString wrapBlockquotes(const QString &html) {
   return out;
 }
 
-} // namespace
+}  // namespace
 
 QString markdownToHtml(const QString &markdown) {
   const QByteArray utf8 = markdown.toUtf8();
@@ -153,7 +151,7 @@ QString markdownToHtml(const QString &markdown) {
   // setHtml and show nothing. Fall back to a plain-text rendering of the
   // raw markdown so the user at least sees the content (and the warning
   // tells them something went wrong).
-  if (rc != 0) {
+  if(rc != 0) {
     qCWarning(lcMarkdown) << "md4c parse failed (rc=" << rc
                           << "), falling back to plain-text rendering";
     return QStringLiteral("<pre>%1</pre>").arg(markdown.toHtmlEscaped());
@@ -165,4 +163,4 @@ QString markdownToHtml(const QString &markdown) {
   return highlightCodeBlocks(wrapBlockquotes(QString::fromUtf8(html)));
 }
 
-} // namespace mdv
+}  // namespace mdv

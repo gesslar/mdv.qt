@@ -45,7 +45,7 @@ QColor Theme::editorLineNumberActive() {
 QTextCharFormat Theme::formatFor(Token t) {
   QTextCharFormat f;
 
-  switch (t) {
+  switch(t) {
   case Text:
     f.setForeground(editorForeground());
     break;
@@ -145,4 +145,4 @@ QTextCharFormat Theme::formatFor(Token t) {
   return f;
 }
 
-} // namespace mdv
+}  // namespace mdv

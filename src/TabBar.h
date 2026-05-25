@@ -12,7 +12,7 @@ class TabBar : public QTabBar {
 public:
   explicit TabBar(QWidget *parent = nullptr);
 
-  static const char *mimeType(); // "application/x-mdv-tab"
+  static const char *mimeType();  // "application/x-mdv-tab"
 
   // True if the tab-drag payload refers to a pinned document. Pinned tabs are
   // locked to their group, so drop targets reject them (forbidden cursor).
