@@ -109,7 +109,8 @@ QString wrapBlockquotes(const QString &html) {
         // Flush the prose before this blockquote, then open the wrapper. The
         // blockquote's own markup is emitted when its matching close is found.
         out.append(QStringView(html).sliced(copied, nextOpen - copied));
-        out.append(QStringLiteral("<table class=\"blockquote\"><tr><td>"));
+        out.append(QStringLiteral(
+            "<table class=\"blockquote\" width=\"100%\"><tr><td>"));
         copied = nextOpen;
       }
       ++depth;
