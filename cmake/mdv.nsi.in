@@ -288,11 +288,23 @@ Section "Uninstall"
   Delete "$SMPROGRAMS\${APPNAME}.lnk"
   Delete "$DESKTOP\${APPNAME}.lnk"
 
-  DeleteRegKey SHCTX "Software\Classes\.md"
-  DeleteRegKey SHCTX "Software\Classes\.markdown"
-  DeleteRegKey SHCTX "Software\Classes\.mkd"
-  DeleteRegKey SHCTX "Software\Classes\${PROGID}"
-  DeleteRegKey SHCTX "${UNINSTKEY}"
+  ; Extension keys: only delete the (Default) value we wrote, then drop the
+  ; whole key if nothing else is left under it. Other apps (and Windows
+  ; itself) may have added subkeys like OpenWithProgids / OpenWithList /
+  ; PerceivedType over time — nuking the entire .md key on uninstall would
+  ; silently throw all of that away, which is especially bad in HKLM where
+  ; it affects every user on the machine. (Caught by Greptile on PR #11.)
+  ;
+  ; The ProgID key (mdv.markdown) is ours top-to-bottom — safe to remove
+  ; whole. Same for the Uninstall registration.
+  DeleteRegValue        SHCTX "Software\Classes\.md"        ""
+  DeleteRegKey /ifempty SHCTX "Software\Classes\.md"
+  DeleteRegValue        SHCTX "Software\Classes\.markdown"  ""
+  DeleteRegKey /ifempty SHCTX "Software\Classes\.markdown"
+  DeleteRegValue        SHCTX "Software\Classes\.mkd"       ""
+  DeleteRegKey /ifempty SHCTX "Software\Classes\.mkd"
+  DeleteRegKey          SHCTX "Software\Classes\${PROGID}"
+  DeleteRegKey          SHCTX "${UNINSTKEY}"
 
   RMDir /r "$INSTDIR"
 
