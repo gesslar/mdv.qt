@@ -323,6 +323,12 @@ void EditorPane::installTabButton(int index, DocumentView *doc) {
     }
   });
 
+  // QTabBar auto-created a native close button on insert (setTabsClosable);
+  // setTabButton only *hides* the old one, so delete it first or it lingers as
+  // an orphaned hidden child of the tab bar until the pane is destroyed.
+  if (auto *old =
+          qobject_cast<QAbstractButton *>(tabBar()->tabButton(index, side)))
+    old->deleteLater();
   tabBar()->setTabButton(index, side, btn);
   refreshTabButton(doc);
 }
