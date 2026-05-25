@@ -95,7 +95,7 @@ private:
   QList<EditorGroup *> allGroups() const;
 
   QVBoxLayout *m_layout = nullptr;
-  QWidget *m_root = nullptr;  // EditorGroup or QSplitter
+  QWidget *m_root = nullptr; // EditorGroup or QSplitter
   EditorGroup *m_active = nullptr;
 
   // Most-recently-closed-first list of file paths, fed by every group's

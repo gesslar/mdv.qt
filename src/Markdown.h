@@ -17,4 +17,4 @@ namespace mdv {
 // <html>/<head>/<body> wrappers) suitable for QTextDocument::setHtml.
 QString markdownToHtml(const QString &markdown);
 
-}  // namespace mdv
+} // namespace mdv

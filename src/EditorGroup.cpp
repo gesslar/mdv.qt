@@ -67,7 +67,7 @@ public:
 protected:
   void paintEvent(QPaintEvent *) override {
     QPainter p(this);
-    if(underMouse()) {
+    if (underMouse()) {
       p.setRenderHint(QPainter::Antialiasing, true);
       p.setPen(Qt::NoPen);
       p.setBrush(QColor(127, 127, 127, 64));
@@ -89,14 +89,15 @@ protected:
 };
 
 EditorArea *findArea(QWidget *start) {
-  for(QWidget *w = start; w; w = w->parentWidget()) {
-    if(auto *a = qobject_cast<EditorArea *>(w)) return a;
+  for (QWidget *w = start; w; w = w->parentWidget()) {
+    if (auto *a = qobject_cast<EditorArea *>(w))
+      return a;
   }
   return nullptr;
 }
 
 EditorArea::SplitSide sideForZone(EditorGroup::DropZone z) {
-  switch(z) {
+  switch (z) {
   case EditorGroup::ZoneLeft:
     return EditorArea::Left;
   case EditorGroup::ZoneRight:
@@ -106,11 +107,11 @@ EditorArea::SplitSide sideForZone(EditorGroup::DropZone z) {
   case EditorGroup::ZoneBottom:
     return EditorArea::Bottom;
   default:
-    return EditorArea::Right;  // unused
+    return EditorArea::Right; // unused
   }
 }
 
-}  // namespace
+} // namespace
 
 EditorGroup::EditorGroup(QWidget *parent) : QTabWidget(parent) {
   // Install our custom tab bar before any other setup so movability and
@@ -163,18 +164,22 @@ int EditorGroup::addDocument(DocumentView *doc) {
 }
 
 DocumentView *EditorGroup::takeDocument(int index) {
-  if(index < 0 || index >= count()) return nullptr;
+  if (index < 0 || index >= count())
+    return nullptr;
   auto *doc = qobject_cast<DocumentView *>(widget(index));
-  if(!doc) return nullptr;
-  removeTab(index);  // does not delete; caller takes ownership
-  if(count() == 0) emit becameEmpty();
+  if (!doc)
+    return nullptr;
+  removeTab(index); // does not delete; caller takes ownership
+  if (count() == 0)
+    emit becameEmpty();
   return doc;
 }
 
 int EditorGroup::indexOfFile(const QString &canonicalPath) const {
-  for(int i = 0; i < count(); ++i) {
+  for (int i = 0; i < count(); ++i) {
     auto *doc = documentAt(i);
-    if(doc && doc->filePath() == canonicalPath) return i;
+    if (doc && doc->filePath() == canonicalPath)
+      return i;
   }
   return -1;
 }
@@ -202,13 +207,16 @@ void EditorGroup::mousePressEvent(QMouseEvent *e) {
 
 void EditorGroup::onTabCloseRequested(int index) {
   QWidget *w = widget(index);
-  if(auto *doc = qobject_cast<DocumentView *>(w)) {
+  if (auto *doc = qobject_cast<DocumentView *>(w)) {
     const QString path = doc->filePath();
-    if(!path.isEmpty()) emit tabClosed(path);
+    if (!path.isEmpty())
+      emit tabClosed(path);
   }
-  removeTab(index);  // does not delete the page widget
-  if(w) w->deleteLater();
-  if(count() == 0) emit becameEmpty();
+  removeTab(index); // does not delete the page widget
+  if (w)
+    w->deleteLater();
+  if (count() == 0)
+    emit becameEmpty();
 }
 
 void EditorGroup::closeTab(int index) { onTabCloseRequested(index); }
@@ -217,22 +225,26 @@ void EditorGroup::closeAll() {
   // Bulk close — pinned tabs survive (only an explicit Close/X removes one).
   // Walk from the end so each removal leaves lower indices valid; if any
   // pinned tabs remain, the group stays alive instead of collapsing.
-  for(int i = count() - 1; i >= 0; --i) {
+  for (int i = count() - 1; i >= 0; --i) {
     auto *doc = documentAt(i);
-    if(doc && doc->isPinned()) continue;
+    if (doc && doc->isPinned())
+      continue;
     onTabCloseRequested(i);
   }
 }
 
 void EditorGroup::closeOthers(int index) {
   QWidget *keep = widget(index);
-  if(!keep) return;
+  if (!keep)
+    return;
   // Walk from the end so each removal leaves lower indices valid; skip the
   // kept tab (pointer-based, robust to shuffling) and any pinned tab.
-  for(int i = count() - 1; i >= 0; --i) {
-    if(widget(i) == keep) continue;
+  for (int i = count() - 1; i >= 0; --i) {
+    if (widget(i) == keep)
+      continue;
     auto *doc = documentAt(i);
-    if(doc && doc->isPinned()) continue;
+    if (doc && doc->isPinned())
+      continue;
     onTabCloseRequested(i);
   }
 }
@@ -240,34 +252,39 @@ void EditorGroup::closeOthers(int index) {
 void EditorGroup::closeToRight(int index) {
   // Close from the last tab down to just past `index`. Closing a higher index
   // never shifts `index` or anything left of it. Pinned tabs survive.
-  for(int i = count() - 1; i > index; --i) {
+  for (int i = count() - 1; i > index; --i) {
     auto *doc = documentAt(i);
-    if(doc && doc->isPinned()) continue;
+    if (doc && doc->isPinned())
+      continue;
     onTabCloseRequested(i);
   }
 }
 
 bool EditorGroup::hasUnpinnedTabs() const {
-  for(int i = 0; i < count(); ++i) {
+  for (int i = 0; i < count(); ++i) {
     auto *doc = documentAt(i);
-    if(doc && !doc->isPinned()) return true;
+    if (doc && !doc->isPinned())
+      return true;
   }
   return false;
 }
 
 void EditorGroup::nextTab() {
-  if(count() <= 1) return;
+  if (count() <= 1)
+    return;
   setCurrentIndex((currentIndex() + 1) % count());
 }
 
 void EditorGroup::previousTab() {
-  if(count() <= 1) return;
+  if (count() <= 1)
+    return;
   setCurrentIndex((currentIndex() - 1 + count()) % count());
 }
 
 void EditorGroup::moveCurrentTabRight() {
   const int idx = currentIndex();
-  if(idx < 0 || idx >= count() - 1) return;
+  if (idx < 0 || idx >= count() - 1)
+    return;
   // QTabBar::moveTab emits tabMoved, which QTabWidget hooks to keep the
   // page widgets in lockstep with the bar — no separate widget shuffle
   // needed.
@@ -276,7 +293,8 @@ void EditorGroup::moveCurrentTabRight() {
 
 void EditorGroup::moveCurrentTabLeft() {
   const int idx = currentIndex();
-  if(idx <= 0) return;
+  if (idx <= 0)
+    return;
   tabBar()->moveTab(idx, idx - 1);
 }
 
@@ -295,16 +313,18 @@ void EditorGroup::onDocPinnedChanged() {
 }
 
 void EditorGroup::enforcePinPartition() {
-  if(m_reordering) return;
+  if (m_reordering)
+    return;
   m_reordering = true;
   // Stable partition: walk left-to-right, pulling each pinned tab to the next
   // pinned slot. Relative order within each zone is preserved, so a legal
   // reorder sticks while a tab dragged across the boundary snaps back.
   int target = 0;
-  for(int i = 0; i < count(); ++i) {
+  for (int i = 0; i < count(); ++i) {
     auto *doc = documentAt(i);
-    if(doc && doc->isPinned()) {
-      if(i != target) tabBar()->moveTab(i, target);
+    if (doc && doc->isPinned()) {
+      if (i != target)
+        tabBar()->moveTab(i, target);
       ++target;
     }
   }
@@ -323,36 +343,40 @@ void EditorGroup::installTabButton(int index, DocumentView *doc) {
   // One handler serves both roles: a pinned tab's button unpins, otherwise it
   // closes. refreshTabButton() sets the icon/tooltip to match the live role.
   connect(btn, &QAbstractButton::clicked, this, [this, doc]() {
-    if(doc->isPinned()) {
+    if (doc->isPinned()) {
       doc->setPinned(false);
     } else {
       const int i = indexOf(doc);
-      if(i >= 0) closeTab(i);
+      if (i >= 0)
+        closeTab(i);
     }
   });
 
   // QTabBar auto-created a native close button on insert (setTabsClosable);
   // setTabButton only *hides* the old one, so delete it first or it lingers as
   // an orphaned hidden child of the tab bar until the group is destroyed.
-  if(auto *old =
-         qobject_cast<QAbstractButton *>(tabBar()->tabButton(index, side)))
+  if (auto *old =
+          qobject_cast<QAbstractButton *>(tabBar()->tabButton(index, side)))
     old->deleteLater();
   tabBar()->setTabButton(index, side, btn);
   refreshTabButton(doc);
 }
 
 void EditorGroup::refreshTabButton(DocumentView *doc) {
-  if(!doc) return;
+  if (!doc)
+    return;
   const int index = indexOf(doc);
-  if(index < 0) return;  // not a tab of this group (e.g. dragged away)
+  if (index < 0)
+    return; // not a tab of this group (e.g. dragged away)
 
   const auto side = QTabBar::ButtonPosition(style()->styleHint(
       QStyle::SH_TabBar_CloseButtonPosition, nullptr, tabBar()));
   auto *btn = qobject_cast<QAbstractButton *>(tabBar()->tabButton(index, side));
-  if(!btn) return;
+  if (!btn)
+    return;
 
   // Codicon glyphs (baked gray). Pinned tab → pin (click unpins); else close.
-  if(doc->isPinned()) {
+  if (doc->isPinned()) {
     static const QIcon pinIcon(QStringLiteral(":/icons/pin.svg"));
     btn->setIcon(pinIcon);
     btn->setToolTip(tr("Unpin"));
@@ -364,7 +388,7 @@ void EditorGroup::refreshTabButton(DocumentView *doc) {
 }
 
 void EditorGroup::dragEnterEvent(QDragEnterEvent *e) {
-  if(e->mimeData()->hasFormat(TabBar::mimeType())) {
+  if (e->mimeData()->hasFormat(TabBar::mimeType())) {
     QByteArray payload = e->mimeData()->data(TabBar::mimeType());
     QDataStream ds(payload);
     qintptr ptr = 0;
@@ -378,9 +402,9 @@ void EditorGroup::dragEnterEvent(QDragEnterEvent *e) {
   // OS file drag — accept anything that carries local file URLs. We
   // don't show the split-zone overlay for OS drops; the entire group
   // is the drop target.
-  if(e->mimeData()->hasUrls()) {
-    for(const QUrl &url : e->mimeData()->urls()) {
-      if(url.isLocalFile()) {
+  if (e->mimeData()->hasUrls()) {
+    for (const QUrl &url : e->mimeData()->urls()) {
+      if (url.isLocalFile()) {
         e->acceptProposedAction();
         return;
       }
@@ -389,10 +413,10 @@ void EditorGroup::dragEnterEvent(QDragEnterEvent *e) {
 }
 
 void EditorGroup::dragMoveEvent(QDragMoveEvent *e) {
-  if(e->mimeData()->hasFormat(TabBar::mimeType())) {
+  if (e->mimeData()->hasFormat(TabBar::mimeType())) {
     // Pinned tabs can't change groups — reject so the OS shows the forbidden
     // cursor and the drop no-ops.
-    if(TabBar::draggedTabIsPinned(e->mimeData())) {
+    if (TabBar::draggedTabIsPinned(e->mimeData())) {
       hideDropOverlay();
       e->ignore();
       return;
@@ -402,7 +426,7 @@ void EditorGroup::dragMoveEvent(QDragMoveEvent *e) {
     // move so the OS shows a "no-drop" cursor.
     const bool noop =
         zone == ZoneNone || (m_dragSource == this && zone == ZoneTab);
-    if(noop) {
+    if (noop) {
       hideDropOverlay();
       e->ignore();
       return;
@@ -412,7 +436,7 @@ void EditorGroup::dragMoveEvent(QDragMoveEvent *e) {
     return;
   }
 
-  if(e->mimeData()->hasUrls()) {
+  if (e->mimeData()->hasUrls()) {
     e->acceptProposedAction();
   }
 }
@@ -426,13 +450,14 @@ void EditorGroup::dropEvent(QDropEvent *e) {
   hideDropOverlay();
 
   // OS file drop — handled separately from internal tab drags.
-  if(e->mimeData()->hasUrls() &&
-     !e->mimeData()->hasFormat(TabBar::mimeType())) {
+  if (e->mimeData()->hasUrls() &&
+      !e->mimeData()->hasFormat(TabBar::mimeType())) {
     QStringList paths;
-    for(const QUrl &url : e->mimeData()->urls()) {
-      if(url.isLocalFile()) paths << url.toLocalFile();
+    for (const QUrl &url : e->mimeData()->urls()) {
+      if (url.isLocalFile())
+        paths << url.toLocalFile();
     }
-    if(!paths.isEmpty()) {
+    if (!paths.isEmpty()) {
       // Take focus so this group becomes active before the open routes
       // through openFile() — that way the file opens in the group the
       // user actually dropped on.
@@ -443,33 +468,40 @@ void EditorGroup::dropEvent(QDropEvent *e) {
     return;
   }
 
-  if(!e->mimeData()->hasFormat(TabBar::mimeType())) return;
+  if (!e->mimeData()->hasFormat(TabBar::mimeType()))
+    return;
   // Pinned tabs never cross groups (dragMoveEvent already rejects, but guard
   // the drop too).
-  if(TabBar::draggedTabIsPinned(e->mimeData())) return;
+  if (TabBar::draggedTabIsPinned(e->mimeData()))
+    return;
 
   QByteArray payload = e->mimeData()->data(TabBar::mimeType());
   QDataStream ds(payload);
   qintptr ptr = 0;
   qint32 idx = -1;
   ds >> ptr >> idx;
-  if(ds.status() != QDataStream::Ok) return;
+  if (ds.status() != QDataStream::Ok)
+    return;
 
   auto *source = reinterpret_cast<EditorGroup *>(ptr);
-  if(!source) return;
+  if (!source)
+    return;
 
   const DropZone zone = zoneAt(e->position().toPoint());
-  if(zone == ZoneNone) return;
-  if(source == this && zone == ZoneTab) return;  // tab already here
+  if (zone == ZoneNone)
+    return;
+  if (source == this && zone == ZoneTab)
+    return; // tab already here
 
   DocumentView *doc = source->takeDocument(idx);
-  if(!doc) return;
+  if (!doc)
+    return;
 
-  if(zone == ZoneTab) {
+  if (zone == ZoneTab) {
     addDocument(doc);
   } else {
     EditorArea *area = findArea(this);
-    if(area) {
+    if (area) {
       area->splitWith(this, sideForZone(zone), doc);
     } else {
       // Defensive — shouldn't happen given how groups are constructed.
@@ -483,7 +515,7 @@ void EditorGroup::dropEvent(QDropEvent *e) {
 
 QRect EditorGroup::bodyRect() const {
   QRect r = rect();
-  if(tabBar()->isVisible()) {
+  if (tabBar()->isVisible()) {
     r.setTop(tabBar()->geometry().bottom() + 1);
   }
   return r;
@@ -491,7 +523,8 @@ QRect EditorGroup::bodyRect() const {
 
 EditorGroup::DropZone EditorGroup::zoneAt(const QPoint &pos) const {
   const QRect body = bodyRect();
-  if(!body.contains(pos)) return ZoneNone;
+  if (!body.contains(pos))
+    return ZoneNone;
 
   const int x = pos.x() - body.left();
   const int y = pos.y() - body.top();
@@ -499,13 +532,17 @@ EditorGroup::DropZone EditorGroup::zoneAt(const QPoint &pos) const {
   const int h = body.height();
 
   // Left/right strips: outer ~25% of width, full body height.
-  if(x < w * 25 / 100) return ZoneLeft;
-  if(x > w * 75 / 100) return ZoneRight;
+  if (x < w * 25 / 100)
+    return ZoneLeft;
+  if (x > w * 75 / 100)
+    return ZoneRight;
 
   // Central column (~middle 50% of width): top/bottom 25% of height
   // are vertical splits; middle 50% is the tab-append zone.
-  if(y < h * 25 / 100) return ZoneTop;
-  if(y > h * 75 / 100) return ZoneBottom;
+  if (y < h * 25 / 100)
+    return ZoneTop;
+  if (y > h * 75 / 100)
+    return ZoneBottom;
   return ZoneTab;
 }
 
@@ -513,7 +550,7 @@ QRect EditorGroup::zoneRect(DropZone z) const {
   const QRect body = bodyRect();
   const int w = body.width();
   const int h = body.height();
-  switch(z) {
+  switch (z) {
   case ZoneLeft:
     return QRect(body.left(), body.top(), w / 2, h);
   case ZoneRight:
@@ -533,7 +570,7 @@ QRect EditorGroup::zoneRect(DropZone z) const {
 
 void EditorGroup::showDropOverlay(DropZone z) {
   const QRect r = zoneRect(z);
-  if(!r.isValid()) {
+  if (!r.isValid()) {
     hideDropOverlay();
     return;
   }
@@ -546,10 +583,12 @@ void EditorGroup::hideDropOverlay() { m_dropOverlay->hide(); }
 
 void EditorGroup::onTabContextMenu(const QPoint &pos) {
   const int index = tabBar()->tabAt(pos);
-  if(index < 0) return;
+  if (index < 0)
+    return;
 
   auto *doc = documentAt(index);
-  if(!doc) return;
+  if (!doc)
+    return;
 
   QMenu menu(this);
   populateTabContextMenu(&menu, doc);
@@ -557,9 +596,11 @@ void EditorGroup::onTabContextMenu(const QPoint &pos) {
 }
 
 void EditorGroup::populateTabContextMenu(QMenu *menu, DocumentView *doc) {
-  if(!doc) return;
+  if (!doc)
+    return;
   const int index = indexOf(doc);
-  if(index < 0) return;  // doc isn't a tab of this group
+  if (index < 0)
+    return; // doc isn't a tab of this group
 
   auto *pinAction = menu->addAction(tr("&Pin"));
   pinAction->setCheckable(true);
@@ -578,7 +619,8 @@ void EditorGroup::populateTabContextMenu(QMenu *menu, DocumentView *doc) {
   // carried over — useful for side-by-side viewing of a single document.
   auto splitOpen = [this, doc](EditorArea::SplitSide side) {
     EditorArea *area = findArea(this);
-    if(!area) return;
+    if (!area)
+      return;
     // Capture a document-relative anchor (character offset) rather than
     // the raw scrollbar value — the new group has a different width and
     // the markdown reflows, so absolute scrollbar values don't carry
@@ -586,7 +628,7 @@ void EditorGroup::populateTabContextMenu(QMenu *menu, DocumentView *doc) {
     // after the split because both groups' widths change.
     const int anchor = doc->topAnchor();
     auto *clone = new DocumentView;
-    if(!clone->loadFile(doc->filePath())) {
+    if (!clone->loadFile(doc->filePath())) {
       delete clone;
       return;
     }
@@ -598,50 +640,47 @@ void EditorGroup::populateTabContextMenu(QMenu *menu, DocumentView *doc) {
   };
 
   auto *splitRightAction = menu->addAction(tr("Split &Right"));
-  connect(splitRightAction, &QAction::triggered, this, [splitOpen]() {
-    splitOpen(EditorArea::Right);
-  });
+  connect(splitRightAction, &QAction::triggered, this,
+          [splitOpen]() { splitOpen(EditorArea::Right); });
 
   auto *splitDownAction = menu->addAction(tr("Split &Down"));
-  connect(splitDownAction, &QAction::triggered, this, [splitOpen]() {
-    splitOpen(EditorArea::Bottom);
-  });
+  connect(splitDownAction, &QAction::triggered, this,
+          [splitOpen]() { splitOpen(EditorArea::Bottom); });
 
   menu->addSeparator();
 
   auto *closeAction = menu->addAction(tr("&Close"));
-  connect(closeAction, &QAction::triggered, this, [this, index]() {
-    onTabCloseRequested(index);
-  });
+  connect(closeAction, &QAction::triggered, this,
+          [this, index]() { onTabCloseRequested(index); });
 
   // Pin-aware enable states: the bulk closes skip pinned tabs, so each greys
   // out when nothing it would touch is unpinned. One pass computes both.
   bool unpinnedOther = false;
   bool unpinnedRight = false;
-  for(int i = 0; i < count(); ++i) {
+  for (int i = 0; i < count(); ++i) {
     auto *d = documentAt(i);
-    if(!d || d->isPinned()) continue;
-    if(i != index) unpinnedOther = true;
-    if(i > index) unpinnedRight = true;
+    if (!d || d->isPinned())
+      continue;
+    if (i != index)
+      unpinnedOther = true;
+    if (i > index)
+      unpinnedRight = true;
   }
 
   auto *closeOthersAction = menu->addAction(tr("Close &Others"));
   closeOthersAction->setEnabled(unpinnedOther);
-  connect(closeOthersAction, &QAction::triggered, this, [this, index]() {
-    closeOthers(index);
-  });
+  connect(closeOthersAction, &QAction::triggered, this,
+          [this, index]() { closeOthers(index); });
 
   auto *closeRightAction = menu->addAction(tr("Close to the &Right"));
   closeRightAction->setEnabled(unpinnedRight);
-  connect(closeRightAction, &QAction::triggered, this, [this, index]() {
-    closeToRight(index);
-  });
+  connect(closeRightAction, &QAction::triggered, this,
+          [this, index]() { closeToRight(index); });
 
   // Closes every unpinned tab in this group; the group collapses if nothing
   // is left (unless it's the last one). Greyed when all tabs are pinned.
   auto *closeGroupAction = menu->addAction(tr("Close &Group"));
   closeGroupAction->setEnabled(hasUnpinnedTabs());
-  connect(closeGroupAction, &QAction::triggered, this, [this]() {
-    closeAll();
-  });
+  connect(closeGroupAction, &QAction::triggered, this,
+          [this]() { closeAll(); });
 }

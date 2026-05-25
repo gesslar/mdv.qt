@@ -25,7 +25,7 @@ PreferencesDialog::PreferencesDialog(QWidget *parent) : QDialog(parent) {
   m_themeCombo = new QComboBox(themeGroup);
   // Show the human-readable theme name, but store the id (filename
   // stem) as userData so QSettings persists the unambiguous handle.
-  for(const QString &id : ContentTheme::availableThemes()) {
+  for (const QString &id : ContentTheme::availableThemes()) {
     m_themeCombo->addItem(ContentTheme::displayNameForBundled(id), id);
   }
   themeLayout->addRow(tr("Content theme:"), m_themeCombo);
@@ -76,18 +76,20 @@ void PreferencesDialog::reload() {
   const QString theme =
       s.value(QStringLiteral("theme/content"), QStringLiteral("blackboard"))
           .toString();
-  if(const int idx = m_themeCombo->findData(theme); idx >= 0) {
+  if (const int idx = m_themeCombo->findData(theme); idx >= 0) {
     m_themeCombo->setCurrentIndex(idx);
   }
 
   const QString proseFamily = s.value(QStringLiteral("fonts/prose")).toString();
-  if(!proseFamily.isEmpty()) m_proseFont->setCurrentFont(QFont(proseFamily));
+  if (!proseFamily.isEmpty())
+    m_proseFont->setCurrentFont(QFont(proseFamily));
 
   m_proseSize->setValue(
       s.value(QStringLiteral("fonts/prose.size"), 14).toInt());
 
   const QString monoFamily = s.value(QStringLiteral("fonts/mono")).toString();
-  if(!monoFamily.isEmpty()) m_monoFont->setCurrentFont(QFont(monoFamily));
+  if (!monoFamily.isEmpty())
+    m_monoFont->setCurrentFont(QFont(monoFamily));
 }
 
 void PreferencesDialog::saveToSettings() {

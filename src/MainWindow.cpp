@@ -22,7 +22,7 @@
 namespace {
 constexpr int kRecentFilesLimit = 10;
 constexpr const char *kRecentFilesKey = "recentFiles";
-}  // namespace
+} // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   setWindowTitle(tr("mdv"));
@@ -34,14 +34,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
           &MainWindow::onCurrentDocumentChanged);
   connect(m_area, &EditorArea::filesDropped, this,
           [this](const QStringList &paths) {
-            for(const QString &p : paths) openFile(p);
+            for (const QString &p : paths)
+              openFile(p);
           });
   // A local-file link clicked in a document opens as a new tab (and lands in
   // Recent Files) through the same path as any other open.
   connect(m_area, &EditorArea::openFileRequested, this,
-          [this](const QString &path) {
-            openFile(path);
-          });
+          [this](const QString &path) { openFile(path); });
 
   // Catch-all for drops that miss the EditorArea (menubar, status bar,
   // any chrome). Drops anywhere on the window get routed to the
@@ -153,9 +152,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 MainWindow::~MainWindow() = default;
 
 void MainWindow::dragEnterEvent(QDragEnterEvent *e) {
-  if(!e->mimeData()->hasUrls()) return;
-  for(const QUrl &url : e->mimeData()->urls()) {
-    if(url.isLocalFile()) {
+  if (!e->mimeData()->hasUrls())
+    return;
+  for (const QUrl &url : e->mimeData()->urls()) {
+    if (url.isLocalFile()) {
       e->acceptProposedAction();
       return;
     }
@@ -163,19 +163,21 @@ void MainWindow::dragEnterEvent(QDragEnterEvent *e) {
 }
 
 void MainWindow::dropEvent(QDropEvent *e) {
-  if(!e->mimeData()->hasUrls()) return;
+  if (!e->mimeData()->hasUrls())
+    return;
   // Only accept the drop if we actually opened something. Accepting on
   // a Move action when no local files were present can cause the drag
   // source to remove the originals — drag-source-side will think we
   // took ownership.
   bool accepted = false;
-  for(const QUrl &url : e->mimeData()->urls()) {
-    if(url.isLocalFile()) {
+  for (const QUrl &url : e->mimeData()->urls()) {
+    if (url.isLocalFile()) {
       openFile(url.toLocalFile());
       accepted = true;
     }
   }
-  if(accepted) e->acceptProposedAction();
+  if (accepted)
+    e->acceptProposedAction();
 }
 
 void MainWindow::onOpen() {
@@ -183,12 +185,13 @@ void MainWindow::onOpen() {
       this, tr("Open Markdown Files"), QString(),
       tr("Markdown files (*.md *.markdown *.mkd);;All files (*)"));
 
-  for(const QString &path : paths) openFile(path);
+  for (const QString &path : paths)
+    openFile(path);
 }
 
 DocumentView *MainWindow::openFile(const QString &path) {
   DocumentView *doc = m_area->openFile(path);
-  if(doc) {
+  if (doc) {
     addToRecentFiles(doc->filePath());
     return doc;
   }
@@ -200,9 +203,10 @@ DocumentView *MainWindow::openFile(const QString &path) {
   // otherwise won't match the canonical stored string. canonicalFilePath() is
   // empty for a missing file, so the absolute form is what matches here.
   const QFileInfo info(path);
-  if(!info.exists()) {
+  if (!info.exists()) {
     QString stored = info.canonicalFilePath();
-    if(stored.isEmpty()) stored = info.absoluteFilePath();
+    if (stored.isEmpty())
+      stored = info.absoluteFilePath();
     removeFromRecentFiles(stored);
   }
   return doc;
@@ -210,7 +214,8 @@ DocumentView *MainWindow::openFile(const QString &path) {
 
 void MainWindow::onCloseCurrentTab() {
   EditorGroup *group = m_area->activeGroup();
-  if(!group || group->count() == 0) return;
+  if (!group || group->count() == 0)
+    return;
   group->closeTab(group->currentIndex());
 }
 
@@ -240,7 +245,7 @@ void MainWindow::updateFileMenuState() {
 }
 
 void MainWindow::onPreferences() {
-  if(!m_preferencesDialog) {
+  if (!m_preferencesDialog) {
     m_preferencesDialog = new PreferencesDialog(this);
     connect(m_preferencesDialog, &PreferencesDialog::preferencesApplied, this,
             &MainWindow::onPreferencesApplied);
@@ -258,7 +263,8 @@ void MainWindow::onPreferencesApplied() {
   // DocumentView (they each re-render to pick up the new rules).
   ContentTheme::active().reload();
   const auto docs = findChildren<DocumentView *>();
-  for(DocumentView *doc : docs) doc->refresh();
+  for (DocumentView *doc : docs)
+    doc->refresh();
 }
 
 void MainWindow::onSplitRight() { m_area->splitActive(EditorArea::Right); }
@@ -266,23 +272,27 @@ void MainWindow::onSplitRight() { m_area->splitActive(EditorArea::Right); }
 void MainWindow::onSplitDown() { m_area->splitActive(EditorArea::Bottom); }
 
 void MainWindow::onNextTab() {
-  if(auto *group = m_area->activeGroup()) group->nextTab();
+  if (auto *group = m_area->activeGroup())
+    group->nextTab();
 }
 
 void MainWindow::onPreviousTab() {
-  if(auto *group = m_area->activeGroup()) group->previousTab();
+  if (auto *group = m_area->activeGroup())
+    group->previousTab();
 }
 
 void MainWindow::onMoveTabRight() {
-  if(auto *group = m_area->activeGroup()) group->moveCurrentTabRight();
+  if (auto *group = m_area->activeGroup())
+    group->moveCurrentTabRight();
 }
 
 void MainWindow::onMoveTabLeft() {
-  if(auto *group = m_area->activeGroup()) group->moveCurrentTabLeft();
+  if (auto *group = m_area->activeGroup())
+    group->moveCurrentTabLeft();
 }
 
 void MainWindow::onCurrentDocumentChanged(DocumentView *doc) {
-  if(!doc) {
+  if (!doc) {
     setWindowTitle(tr("mdv"));
     m_statusLabel->setText(tr("No file open."));
     return;
@@ -302,10 +312,12 @@ void MainWindow::saveRecentFiles() {
 }
 
 void MainWindow::addToRecentFiles(const QString &canonical) {
-  if(canonical.isEmpty()) return;
+  if (canonical.isEmpty())
+    return;
   m_recentFiles.removeAll(canonical);
   m_recentFiles.prepend(canonical);
-  while(m_recentFiles.size() > kRecentFilesLimit) m_recentFiles.removeLast();
+  while (m_recentFiles.size() > kRecentFilesLimit)
+    m_recentFiles.removeLast();
   saveRecentFiles();
   // No explicit rebuildRecentMenu() here — the submenu's aboutToShow
   // handler rebuilds on demand.
@@ -313,7 +325,8 @@ void MainWindow::addToRecentFiles(const QString &canonical) {
 
 void MainWindow::removeFromRecentFiles(const QString &path) {
   // aboutToShow rebuilds the submenu, so a save is all that's needed here.
-  if(m_recentFiles.removeAll(path) > 0) saveRecentFiles();
+  if (m_recentFiles.removeAll(path) > 0)
+    saveRecentFiles();
 }
 
 void MainWindow::rebuildRecentMenu() {
@@ -321,7 +334,8 @@ void MainWindow::rebuildRecentMenu() {
 
   // When empty, the "Open Recent" parent is greyed by updateFileMenuState(),
   // so there's nothing to populate here — no "(none)" placeholder needed.
-  if(m_recentFiles.isEmpty()) return;
+  if (m_recentFiles.isEmpty())
+    return;
 
   auto *reopenAllAction = m_recentMenu->addAction(tr("Reopen &All"));
   connect(reopenAllAction, &QAction::triggered, this, [this]() {
@@ -330,20 +344,20 @@ void MainWindow::rebuildRecentMenu() {
     // most-recent file ends up as the last tab opened, and therefore
     // the active one.
     const QStringList files = m_recentFiles;
-    for(auto it = files.rbegin(); it != files.rend(); ++it) {
-      if(QFileInfo::exists(*it)) openFile(*it);
+    for (auto it = files.rbegin(); it != files.rend(); ++it) {
+      if (QFileInfo::exists(*it))
+        openFile(*it);
     }
   });
 
   m_recentMenu->addSeparator();
 
-  for(const QString &path : std::as_const(m_recentFiles)) {
+  for (const QString &path : std::as_const(m_recentFiles)) {
     const QFileInfo info(path);
     auto *action = m_recentMenu->addAction(info.fileName());
     action->setToolTip(path);
-    connect(action, &QAction::triggered, this, [this, path]() {
-      openFile(path);
-    });
+    connect(action, &QAction::triggered, this,
+            [this, path]() { openFile(path); });
   }
 
   m_recentMenu->addSeparator();

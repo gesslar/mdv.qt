@@ -34,10 +34,11 @@ KSH::Repository &repository() {
 // common highlight.js-style short forms aren't alternative names; bridge those.
 KSH::Definition definitionFor(const QString &language) {
   const QString lang = language.trimmed();
-  if(lang.isEmpty()) return {};
+  if (lang.isEmpty())
+    return {};
 
-  if(KSH::Definition def = repository().definitionForName(lang);
-     def.isValid()) {
+  if (KSH::Definition def = repository().definitionForName(lang);
+      def.isValid()) {
     return def;
   }
 
@@ -55,7 +56,8 @@ KSH::Definition definitionFor(const QString &language) {
       {QStringLiteral("md"), QStringLiteral("Markdown")},
   };
   const QString mapped = aliases.value(lang.toLower());
-  if(!mapped.isEmpty()) return repository().definitionForName(mapped);
+  if (!mapped.isEmpty())
+    return repository().definitionForName(mapped);
   return {};
 }
 
@@ -73,10 +75,11 @@ struct TokenStyle {
 // (syntax.error, syntax.builtin, …) while falling back to the base palette.
 TokenStyle resolve(std::initializer_list<const char *> keys) {
   const ContentTheme &theme = ContentTheme::active();
-  for(const char *key : keys) {
+  for (const char *key : keys) {
     const QString name = QString::fromLatin1(key);
     const QString color = theme.color(name);
-    if(color.isEmpty()) continue;
+    if (color.isEmpty())
+      continue;
 
     TokenStyle ts;
     ts.color = color;
@@ -92,7 +95,7 @@ TokenStyle resolve(std::initializer_list<const char *> keys) {
 // means "no style" — the run inherits the code block's foreground.
 TokenStyle styleForTextStyle(KSH::Theme::TextStyle style) {
   using T = KSH::Theme;
-  switch(style) {
+  switch (style) {
   case T::Keyword:
   case T::Import:
     return resolve({"syntax.keyword"});
@@ -161,22 +164,24 @@ public:
     m_html.clear();
     const QStringList lines = code.split(QLatin1Char('\n'));
     KSH::State state;
-    for(qsizetype i = 0; i < lines.size(); ++i) {
+    for (qsizetype i = 0; i < lines.size(); ++i) {
       m_line = lines.at(i);
       m_pos = 0;
       state = highlightLine(m_line, state);
-      if(m_pos < m_line.size()) {
+      if (m_pos < m_line.size()) {
         appendRun(m_line.sliced(m_pos), KSH::Theme::Normal);
       }
-      if(i + 1 < lines.size()) m_html.append(QLatin1Char('\n'));
+      if (i + 1 < lines.size())
+        m_html.append(QLatin1Char('\n'));
     }
     return m_html;
   }
 
 protected:
   void applyFormat(int offset, int length, const KSH::Format &format) override {
-    if(length <= 0) return;
-    if(offset > m_pos) {
+    if (length <= 0)
+      return;
+    if (offset > m_pos) {
       appendRun(m_line.sliced(m_pos, offset - m_pos), KSH::Theme::Normal);
     }
     appendRun(m_line.sliced(offset, length), format.textStyle());
@@ -187,13 +192,15 @@ private:
   void appendRun(QStringView text, KSH::Theme::TextStyle style) {
     const QString escaped = text.toString().toHtmlEscaped();
     const TokenStyle ts = styleForTextStyle(style);
-    if(ts.isEmpty()) {
+    if (ts.isEmpty()) {
       m_html.append(escaped);
       return;
     }
     QString css = QStringLiteral("color:%1").arg(ts.color);
-    if(ts.bold) css.append(QLatin1String(";font-weight:bold"));
-    if(ts.italic) css.append(QLatin1String(";font-style:italic"));
+    if (ts.bold)
+      css.append(QLatin1String(";font-weight:bold"));
+    if (ts.italic)
+      css.append(QLatin1String(";font-style:italic"));
     m_html.append(
         QStringLiteral("<span style=\"%1\">%2</span>").arg(css, escaped));
   }
@@ -203,14 +210,15 @@ private:
   int m_pos = 0;
 };
 
-}  // namespace
+} // namespace
 
 QString highlightCode(const QString &code, const QString &language) {
   const KSH::Definition def = definitionFor(language);
-  if(!def.isValid()) return code.toHtmlEscaped();
+  if (!def.isValid())
+    return code.toHtmlEscaped();
 
   FragmentHighlighter highlighter;
   return highlighter.run(code, def);
 }
 
-}  // namespace mdv
+} // namespace mdv

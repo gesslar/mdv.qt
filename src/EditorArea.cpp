@@ -1,3 +1,4 @@
+
 #include "EditorArea.h"
 
 #include <QApplication>
@@ -32,15 +33,16 @@ EditorArea::EditorArea(QWidget *parent) : QWidget(parent) {
 DocumentView *EditorArea::openFile(const QString &path) {
   const QFileInfo info(path);
   QString canonical = info.canonicalFilePath();
-  if(canonical.isEmpty()) canonical = info.absoluteFilePath();
+  if (canonical.isEmpty())
+    canonical = info.absoluteFilePath();
 
-  if(const int existing = m_active->indexOfFile(canonical); existing >= 0) {
+  if (const int existing = m_active->indexOfFile(canonical); existing >= 0) {
     m_active->setCurrentIndex(existing);
     return m_active->documentAt(existing);
   }
 
   auto *doc = new DocumentView(m_active);
-  if(!doc->loadFile(path)) {
+  if (!doc->loadFile(path)) {
     delete doc;
     return nullptr;
   }
@@ -51,7 +53,7 @@ DocumentView *EditorArea::openFile(const QString &path) {
 
 void EditorArea::splitActive(SplitSide side) {
   EditorGroup *newGroup = splitInternal(m_active, side);
-  if(newGroup) {
+  if (newGroup) {
     setActive(newGroup);
     newGroup->setFocus();
   }
@@ -60,19 +62,22 @@ void EditorArea::splitActive(SplitSide side) {
 void EditorArea::splitWith(EditorGroup *target, SplitSide side,
                            DocumentView *doc) {
   EditorGroup *newGroup = splitInternal(target, side);
-  if(!newGroup) {
+  if (!newGroup) {
     // Fall back to adding to the target so we don't drop the doc on the
     // floor.
-    if(doc) target->addDocument(doc);
+    if (doc)
+      target->addDocument(doc);
     return;
   }
-  if(doc) newGroup->addDocument(doc);
+  if (doc)
+    newGroup->addDocument(doc);
   setActive(newGroup);
   newGroup->setFocus();
 }
 
 EditorGroup *EditorArea::splitInternal(EditorGroup *target, SplitSide side) {
-  if(!target) return nullptr;
+  if (!target)
+    return nullptr;
 
   const Qt::Orientation wanted =
       (side == Left || side == Right) ? Qt::Horizontal : Qt::Vertical;
@@ -91,15 +96,15 @@ EditorGroup *EditorArea::splitInternal(EditorGroup *target, SplitSide side) {
   // Same-orientation parent splitter → insert in place, no extra nesting.
   // Split target's slice between target and the new group so both end up
   // half the size target used to occupy.
-  if(auto *parentSplit = qobject_cast<QSplitter *>(target->parentWidget());
-     parentSplit && parentSplit->orientation() == wanted) {
+  if (auto *parentSplit = qobject_cast<QSplitter *>(target->parentWidget());
+      parentSplit && parentSplit->orientation() == wanted) {
     const int idx = parentSplit->indexOf(target);
     QList<int> sizes = parentSplit->sizes();
 
     parentSplit->insertWidget(newGroupAfter ? idx + 1 : idx, newGroup);
 
-    sizes[idx] = otherHalf;                             // target's new size
-    sizes.insert(newGroupAfter ? idx + 1 : idx, half);  // new group's size
+    sizes[idx] = otherHalf;                            // target's new size
+    sizes.insert(newGroupAfter ? idx + 1 : idx, half); // new group's size
     parentSplit->setSizes(sizes);
     return newGroup;
   }
@@ -111,7 +116,7 @@ EditorGroup *EditorArea::splitInternal(EditorGroup *target, SplitSide side) {
   split->setChildrenCollapsible(false);
 
   auto installChildren = [&]() {
-    if(newGroupAfter) {
+    if (newGroupAfter) {
       split->addWidget(target);
       split->addWidget(newGroup);
     } else {
@@ -120,7 +125,7 @@ EditorGroup *EditorArea::splitInternal(EditorGroup *target, SplitSide side) {
     }
   };
 
-  if(target == m_root) {
+  if (target == m_root) {
     m_layout->removeWidget(target);
     installChildren();
     setRoot(split);
@@ -147,20 +152,23 @@ DocumentView *EditorArea::currentDocument() const {
 
 void EditorArea::onGroupActivated() {
   auto *group = qobject_cast<EditorGroup *>(sender());
-  if(group) setActive(group);
+  if (group)
+    setActive(group);
 }
 
 void EditorArea::onGroupEmpty() {
   auto *group = qobject_cast<EditorGroup *>(sender());
-  if(!group) return;
+  if (!group)
+    return;
 
   // The last surviving group is preserved as an empty placeholder; we
   // never end up with zero groups in the area.
   const auto groups = allGroups();
-  if(groups.size() <= 1) return;
+  if (groups.size() <= 1)
+    return;
 
   auto *parentSplit = qobject_cast<QSplitter *>(group->parentWidget());
-  if(!parentSplit) {
+  if (!parentSplit) {
     // group is the root yet there's another group somewhere? Shouldn't
     // happen given our tree shape — bail safely.
     return;
@@ -170,16 +178,16 @@ void EditorArea::onGroupEmpty() {
   group->deleteLater();
 
   // If the splitter now has only one child, collapse it into its parent.
-  if(parentSplit->count() == 1) {
+  if (parentSplit->count() == 1) {
     QWidget *survivor = parentSplit->widget(0);
-    survivor->setParent(nullptr);  // detach from parentSplit
+    survivor->setParent(nullptr); // detach from parentSplit
     replaceInParent(parentSplit, survivor);
     parentSplit->deleteLater();
   }
 
   // Promote some surviving group to active so File→Open has a target.
   const auto remaining = allGroups();
-  if(!remaining.isEmpty()) {
+  if (!remaining.isEmpty()) {
     setActive(remaining.first());
     remaining.first()->setFocus();
   }
@@ -187,14 +195,16 @@ void EditorArea::onGroupEmpty() {
 
 void EditorArea::onGroupCurrentDocumentChanged(DocumentView *doc) {
   // Only the active group's current-doc changes surface upward.
-  if(sender() == m_active) emit currentDocumentChanged(doc);
+  if (sender() == m_active)
+    emit currentDocumentChanged(doc);
 }
 
 void EditorArea::onFocusChanged(QWidget *, QWidget *now) {
-  if(!now || !isAncestorOf(now)) return;
+  if (!now || !isAncestorOf(now))
+    return;
 
-  for(QWidget *w = now; w && w != this; w = w->parentWidget()) {
-    if(auto *group = qobject_cast<EditorGroup *>(w)) {
+  for (QWidget *w = now; w && w != this; w = w->parentWidget()) {
+    if (auto *group = qobject_cast<EditorGroup *>(w)) {
       setActive(group);
       return;
     }
@@ -202,16 +212,18 @@ void EditorArea::onFocusChanged(QWidget *, QWidget *now) {
 }
 
 void EditorArea::setRoot(QWidget *w) {
-  if(m_root && m_root != w) {
+  if (m_root && m_root != w) {
     m_layout->removeWidget(m_root);
   }
   m_root = w;
-  if(w->parentWidget() != this) w->setParent(this);
+  if (w->parentWidget() != this)
+    w->setParent(this);
   m_layout->addWidget(w);
 }
 
 void EditorArea::setActive(EditorGroup *group) {
-  if(m_active == group) return;
+  if (m_active == group)
+    return;
   m_active = group;
   emit currentDocumentChanged(group ? group->currentDocument() : nullptr);
 }
@@ -230,17 +242,19 @@ void EditorArea::registerGroup(EditorGroup *group) {
 }
 
 void EditorArea::onTabClosed(const QString &filePath) {
-  if(filePath.isEmpty()) return;
-  m_closedStack.removeAll(filePath);  // dedupe; most-recent wins
+  if (filePath.isEmpty())
+    return;
+  m_closedStack.removeAll(filePath); // dedupe; most-recent wins
   m_closedStack.prepend(filePath);
-  while(m_closedStack.size() > kClosedStackLimit) m_closedStack.removeLast();
+  while (m_closedStack.size() > kClosedStackLimit)
+    m_closedStack.removeLast();
 }
 
 void EditorArea::reopenLastClosed() {
   // Walk past any entries that no longer exist on disk.
-  while(!m_closedStack.isEmpty()) {
+  while (!m_closedStack.isEmpty()) {
     const QString path = m_closedStack.takeFirst();
-    if(QFile::exists(path)) {
+    if (QFile::exists(path)) {
       openFile(path);
       return;
     }
@@ -248,23 +262,26 @@ void EditorArea::reopenLastClosed() {
 }
 
 void EditorArea::closeAllInActive() {
-  if(m_active) m_active->closeAll();
+  if (m_active)
+    m_active->closeAll();
 }
 
 void EditorArea::closeAllEverywhere() {
   // Snapshot the groups before iterating — group destruction during the
   // loop would otherwise invalidate live iteration over allGroups().
   const auto groups = allGroups();
-  for(EditorGroup *group : groups) group->closeAll();
+  for (EditorGroup *group : groups)
+    group->closeAll();
 }
 
 void EditorArea::replaceInParent(QWidget *child, QWidget *replacement) {
-  if(child == m_root) {
+  if (child == m_root) {
     setRoot(replacement);
     return;
   }
   auto *parentSplit = qobject_cast<QSplitter *>(child->parentWidget());
-  if(!parentSplit) return;
+  if (!parentSplit)
+    return;
   const int idx = parentSplit->indexOf(child);
   parentSplit->replaceWidget(idx, replacement);
 }
@@ -281,8 +298,9 @@ QList<EditorGroup *> EditorArea::allGroups() const {
 
 bool EditorArea::hasUnpinnedTabs() const {
   const auto groups = allGroups();
-  for(EditorGroup *group : groups) {
-    if(group->hasUnpinnedTabs()) return true;
+  for (EditorGroup *group : groups) {
+    if (group->hasUnpinnedTabs())
+      return true;
   }
   return false;
 }

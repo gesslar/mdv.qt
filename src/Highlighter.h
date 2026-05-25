@@ -13,4 +13,4 @@ namespace mdv {
 // uncolored. The returned fragment is meant to live inside <pre><code>...
 QString highlightCode(const QString &code, const QString &language);
 
-}  // namespace mdv
+} // namespace mdv
