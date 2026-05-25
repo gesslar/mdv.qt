@@ -17,7 +17,7 @@ public:
   explicit MainWindow(QWidget *parent = nullptr);
   ~MainWindow() override;
 
-  // Open in the active editor pane. Returns the DocumentView the user is
+  // Open in the active editor group. Returns the DocumentView the user is
   // now looking at, or nullptr on load failure.
   DocumentView *openFile(const QString &path);
 

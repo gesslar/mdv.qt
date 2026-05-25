@@ -3,7 +3,7 @@
 #include <QPoint>
 #include <QTabBar>
 
-// QTabBar subclass that starts a cross-pane QDrag once the cursor leaves
+// QTabBar subclass that starts a cross-group QDrag once the cursor leaves
 // the bar's geometry. Within the bar, the parent QTabBar's built-in
 // move-within-bar gesture continues to work normally.
 class TabBar : public QTabBar {
@@ -27,11 +27,11 @@ protected:
   void dropEvent(QDropEvent *e) override;
 
 private:
-  void startCrossPaneDrag(int tabIndex);
+  void startCrossGroupDrag(int tabIndex);
 
   int m_pressIndex = -1;
   QPoint m_pressPos;
-  // The pressed tab's page widget, captured at press so the cross-pane drag can
+  // The pressed tab's page widget, captured at press so the cross-group drag can
   // recompute its live index — a within-bar reorder may move it meanwhile.
   QWidget *m_pressTab = nullptr;
   bool m_dragInFlight = false;

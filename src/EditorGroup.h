@@ -5,14 +5,14 @@
 class DocumentView;
 
 // A single tabbed editor group. Leaves of the EditorArea splitter tree are
-// EditorPane instances. Owns its tabs, raises signals when its visible
+// EditorGroup instances. Owns its tabs, raises signals when its visible
 // document changes, when it gains keyboard focus, or when it loses its
 // last tab.
-class EditorPane : public QTabWidget {
+class EditorGroup : public QTabWidget {
   Q_OBJECT
 
 public:
-  explicit EditorPane(QWidget *parent = nullptr);
+  explicit EditorGroup(QWidget *parent = nullptr);
 
   // Take ownership of doc, append it as a tab, and focus it. Returns the
   // tab's index.
@@ -37,8 +37,8 @@ public:
   // operations that walk the tab list externally.
   void closeTab(int index);
 
-  // Close every tab in this pane. Emits becameEmpty() after the last
-  // one, which lets the EditorArea collapse the pane if it isn't the
+  // Close every tab in this group. Emits becameEmpty() after the last
+  // one, which lets the EditorArea collapse the group if it isn't the
   // last surviving one.
   void closeAll();
 
@@ -49,7 +49,7 @@ public:
   // survive.
   void closeToRight(int index);
 
-  // True if this pane holds at least one unpinned tab — i.e. a bulk close
+  // True if this group holds at least one unpinned tab — i.e. a bulk close
   // (Others / to-the-Right / Group / All) would actually remove something.
   bool hasUnpinnedTabs() const;
 
@@ -70,11 +70,11 @@ signals:
   void becameEmpty();
 
   // Emitted when a tab is actually closed (deleted). Not emitted for
-  // moves (drag-out to another pane goes through takeDocument()).
+  // moves (drag-out to another group goes through takeDocument()).
   void tabClosed(const QString &filePath);
 
-  // Emitted when the user drops one or more file URLs onto this pane
-  // from the OS. The pane has already focused itself before emitting.
+  // Emitted when the user drops one or more file URLs onto this group
+  // from the OS. The group has already focused itself before emitting.
   void filesDropped(const QStringList &paths);
 
   // Re-emission of a contained document's openFileRequested — a local-file
@@ -122,5 +122,5 @@ private:
   bool m_reordering = false;
 
   QWidget *m_dropOverlay = nullptr;
-  EditorPane *m_dragSource = nullptr;
+  EditorGroup *m_dragSource = nullptr;
 };

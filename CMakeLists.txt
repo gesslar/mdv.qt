@@ -67,8 +67,8 @@ qt_add_executable(mdv
     src/MainWindow.h
     src/DocumentView.cpp
     src/DocumentView.h
-    src/EditorPane.cpp
-    src/EditorPane.h
+    src/EditorGroup.cpp
+    src/EditorGroup.h
     src/EditorArea.cpp
     src/EditorArea.h
     src/TabBar.cpp
