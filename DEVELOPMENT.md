@@ -113,6 +113,37 @@ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
 
+## Packaging (Linux)
+
+`.deb` and `.rpm` are built with CPack from the same `install()` rules `make
+install` uses (binary + `.desktop` + icon). The targets live in
+`Makefile.dist.linux` — the top-level Makefile pulls in the per-OS dist include
+for the host automatically. Package metadata (dependencies, license, sections)
+lives in `cmake/Packaging.cmake`.
+
+```bash
+make deb     # → dist/mdv_<version>_<arch>.deb
+make rpm     # → dist/mdv-<version>-1.<arch>.rpm
+make dist    # both
+```
+
+Each builds the release binary first, then runs `cpack`; artifacts land in
+`dist/`.
+
+**Packaging tooling** (not build deps — only needed to produce the packages):
+
+- Fedora: `sudo dnf install rpm-build dpkg`
+- Debian/Ubuntu: `sudo apt install dpkg-dev rpm`
+
+The Debian `Depends:` list is hand-maintained in `cmake/Packaging.cmake` — we
+don't run `dpkg-shlibdeps`, since on a non-Debian host it resolves this distro's
+soname packages, which are the wrong names for a `.deb`. Keep it in step with
+the link line if you add a library. RPM `Requires:` are auto-detected by
+`rpmbuild`.
+
+Windows and macOS will get their own `Makefile.dist.windows` /
+`Makefile.dist.macos` includes when those build paths are ready.
+
 ## Using Qt Creator
 
 1. `File → Open File or Project`

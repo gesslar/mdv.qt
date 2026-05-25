@@ -114,3 +114,8 @@ if(UNIX AND NOT APPLE)
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/512x512/apps
         RENAME mdv.png)
 endif()
+
+# CPack: turn the install() rules above into .deb / .rpm. Kept in its own file
+# and included last (after the install rules it packages). Linux-only today;
+# see cmake/Packaging.cmake and Makefile.dist.linux.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Packaging.cmake)

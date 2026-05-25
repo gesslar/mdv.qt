@@ -6,7 +6,7 @@ Comment=An offline Markdown viewer.
 Exec=mdv %F
 Icon=mdv
 Terminal=false
-Categories=Office;Utility;
+Categories=Office;
 MimeType=text/markdown;
 # Must equal the running window's Wayland app_id / X11 WM_CLASS (set via
 # QGuiApplication::setDesktopFileName("mdv") in src/main.cpp) so the compositor
