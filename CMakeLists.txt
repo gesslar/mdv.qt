@@ -78,8 +78,9 @@ endif()
 # branch also has to FetchContent extra-cmake-modules (ECM) first — KSH does
 # find_package(ECM) at configure time. The KSH build also runs the
 # katehighlightingindexer host tool and lrelease, which is why this is a
-# *native* Windows path only (cross-compiling KSH from Linux trips on host
-# tools — see work/windows-cross-notes.md for why we abandoned that).
+# *native* Windows path only — cross-compiling KSH from Linux trips on those
+# host tools (they get built for the Windows target and can't run on the Linux
+# host that's doing the build).
 #
 # As with md4c, the imported target names differ between paths:
 # find_package gives `KF6::SyntaxHighlighting`; the in-build FetchContent gives

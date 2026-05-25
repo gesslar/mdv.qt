@@ -1,7 +1,7 @@
 # CPack configuration — builds the OS-native installer from the very same
 # install() rules `make install` uses (binary + runtime deps + desktop bits).
 # Linux today produces .deb / .rpm; Windows produces an NSIS .exe installer.
-# macOS will follow its own (non-CPack) path; see work/macos-packaging.md.
+# macOS will follow its own (non-CPack) path (macdeployqt + zip) when it lands.
 #
 # Driven from the per-host Makefile.dist.* include:
 #     Linux:   make deb / make rpm / make dist
@@ -65,10 +65,12 @@ if(WIN32)
     # `RequestExecutionLevel admin`, which means every install asks for UAC
     # whether the user wants a per-user install or not. We want the user to
     # *choose* between per-user (no admin, AppData) and per-machine (admin,
-    # Program Files) via NSIS's MultiUser.nsh — same posture electron-builder
-    # exposes with oneClick:false + allowElevation:true. CPack's template
-    # isn't parameterisable enough to layer that on, so we drive makensis
-    # directly against our own slim cmake/mdv.nsi.in template.
+    # Program Files) — the same posture electron-builder exposes with
+    # oneClick:false + allowElevation:true. CPack's template isn't
+    # parameterisable enough to layer that on, so we drive makensis directly
+    # against our own slim cmake/mdv.nsi.in template, which hand-rolls that
+    # choice (a custom nsDialogs page + manual `runas` elevation — deliberately
+    # NOT MultiUser.nsh; see the rationale in that file).
     #
     # Pipeline:
     #   1. cmake --install $RELEASE_DIR --prefix <stage>
