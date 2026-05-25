@@ -35,6 +35,11 @@ void TabBar::mousePressEvent(QMouseEvent *e) {
   if (e->button() == Qt::LeftButton) {
     m_pressIndex = tabAt(e->pos());
     m_pressPos = e->pos();
+    // Capture the pressed tab's page widget (identity) — within-bar reordering
+    // can shift its index before a cross-pane drag begins, so we recompute the
+    // live index from this rather than trusting the press-time index.
+    auto *pane = qobject_cast<EditorPane *>(parentWidget());
+    m_pressTab = pane ? pane->widget(m_pressIndex) : nullptr;
   }
   QTabBar::mousePressEvent(e);
 }
@@ -61,11 +66,17 @@ void TabBar::mouseMoveEvent(QMouseEvent *e) {
     return;
   }
 
-  startCrossPaneDrag(m_pressIndex);
+  // Recompute the live index from the captured tab — QTabBar may have reordered
+  // it within the bar since the press, leaving m_pressIndex stale.
+  auto *pane = qobject_cast<EditorPane *>(parentWidget());
+  const int idx = pane ? pane->indexOf(m_pressTab) : -1;
+  if (idx < 0) return;
+  startCrossPaneDrag(idx);
 }
 
 void TabBar::mouseReleaseEvent(QMouseEvent *e) {
   m_pressIndex = -1;
+  m_pressTab = nullptr;
   QTabBar::mouseReleaseEvent(e);
 }
 
@@ -134,4 +145,5 @@ void TabBar::startCrossPaneDrag(int tabIndex) {
   drag->exec(Qt::MoveAction);
   m_dragInFlight = false;
   m_pressIndex = -1;
+  m_pressTab = nullptr;
 }

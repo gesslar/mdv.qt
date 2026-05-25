@@ -31,5 +31,8 @@ private:
 
   int m_pressIndex = -1;
   QPoint m_pressPos;
+  // The pressed tab's page widget, captured at press so the cross-pane drag can
+  // recompute its live index — a within-bar reorder may move it meanwhile.
+  QWidget *m_pressTab = nullptr;
   bool m_dragInFlight = false;
 };
