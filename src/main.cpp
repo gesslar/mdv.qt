@@ -9,7 +9,7 @@ int main(int argc, char *argv[]) {
 
   QCoreApplication::setOrganizationName("gesslar");
   QCoreApplication::setApplicationName("mdv");
-  QCoreApplication::setApplicationVersion("0.1.0");
+  QCoreApplication::setApplicationVersion("2.0.0");
 
   // Window icon for X11 title bars, Windows, and macOS. On Wayland this does
   // NOT drive the dock/taskbar icon — that comes from a .desktop file whose
