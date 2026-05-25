@@ -1,0 +1,54 @@
+# clang-format config for mdv. Tuned to the house style:
+#   - 2-space indent, K&R braces (opening brace attached to its statement)
+#   - NO space after control keywords: if(x), for(...), switch(...) — and foo() too
+#   - pointer binds to the name: QWidget *w, not QWidget* w
+#
+# Built on the LLVM preset, which already matches the existing tree closely.
+# The keys below are the customization surface: change one, run `make format`.
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+ColumnLimit: 80
+
+BreakBeforeBraces: Attach              # K&R: { stays on the statement's line
+PointerAlignment: Right                # QWidget *w
+
+# House style keeps an unbraced single-statement body on the *same* line as its
+# control keyword (`if(x) return {};`). Without these, LLVM would split it onto
+# two lines.
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+
+# Lambdas stay as written: a non-empty body is never collapsed onto one line.
+AllowShortLambdasOnASingleLine: Empty
+
+# Two spaces before a trailing comment (LLVM uses one).
+SpacesBeforeTrailingComments: 2
+
+# No space before any paren: if(x), for(...), while(...), foo(), bar(x).
+# Custom (rather than Never) keeps the knobs visible — flip AfterControlStatements
+# to true if you ever want `if (x)` back.
+SpaceBeforeParens: Custom
+SpaceBeforeParensOptions:
+  AfterControlStatements: false
+  AfterForeachMacros: false
+  AfterFunctionDefinitionName: false
+  AfterFunctionDeclarationName: false
+  BeforeNonEmptyParentheses: false
+
+AccessModifierOffset: -2               # public:/protected: sit at the class indent
+NamespaceIndentation: None             # contents of `namespace {` start at column 0
+
+# Keep the include groups you've laid out (Qt block, then local block) and
+# sort alphabetically *within* each group rather than merging them.
+IncludeBlocks: Preserve
+SortIncludes: CaseSensitive
+
+# House style omits braces on single-statement bodies. clang-format can strip
+# them, but it's an aggressive whole-tree rewrite, so it's left off here — it
+# won't touch existing braces. Uncomment to enforce:
+# RemoveBracesLLVM: true

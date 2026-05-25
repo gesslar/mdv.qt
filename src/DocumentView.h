@@ -112,5 +112,6 @@ private:
   // using a common prefix/suffix diff: unchanged if the edit was below it,
   // shifted by the net length delta if above, best-effort positional if the
   // offset falls inside the changed region.
-  int remapAnchor(int pos, const QString &oldText, const QString &newText) const;
+  int remapAnchor(int pos, const QString &oldText,
+                  const QString &newText) const;
 };

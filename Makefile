@@ -44,7 +44,8 @@ EXE :=
 DIST_INCLUDE := Makefile.dist.linux
 endif
 
-.PHONY: all build release run install uninstall clean distclean
+.PHONY: all build release run install uninstall clean distclean \
+        format format-check tidy clazy lint
 
 # `make` on its own gives you a dev build.
 all: build
@@ -98,6 +99,38 @@ clean:
 # Remove every build directory and the packaging output.
 distclean:
 	cmake -E rm -rf $(DEV_DIR) $(RELEASE_DIR) $(DIST_DIR)
+
+# Linting & formatting. Three layers, all over our own src/ only (Qt and
+# KSyntaxHighlighting headers are never touched):
+#   format        rewrite sources to .clang-format  (the formatter)
+#   format-check  report drift without writing       (CI-friendly)
+#   tidy          clang-tidy: general C++ analysis    (reads .clang-tidy)
+#   clazy         clazy: Qt-specific analysis
+#   lint          format-check + tidy + clazy         (run the lot)
+#
+# tidy/clazy need build/compile_commands.json, which `make build` writes — so
+# both depend on `build`. Ninja's incremental rebuild makes that near-free.
+LINT_SRCS := $(wildcard src/*.cpp src/*.h)
+LINT_CPP  := $(wildcard src/*.cpp)
+
+format:
+	clang-format -i $(LINT_SRCS)
+
+format-check:
+	clang-format --dry-run --Werror $(LINT_SRCS)
+
+tidy: build
+	clang-tidy -p $(DEV_DIR) $(LINT_CPP)
+
+# clazy ships clazy-standalone, a LibTooling driver that reads the same compile
+# DB. level1 is the sane default tier (level0 = safest, level2 = noisier).
+# No-ops with a hint if clazy isn't installed.
+clazy: build
+	@command -v clazy-standalone >/dev/null 2>&1 \
+	  && clazy-standalone -p $(DEV_DIR) -checks=level1 $(LINT_CPP) \
+	  || echo "clazy-standalone not found — install clazy for Qt-specific checks"
+
+lint: format-check tidy clazy
 
 # Packaging targets (deb/rpm/dist, etc.) live in a per-OS include. The leading
 # dash means a missing file is silently skipped, so the not-yet-written

@@ -64,7 +64,7 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   m_pendingAnchorTimer = new QTimer(this);
   m_pendingAnchorTimer->setSingleShot(true);
   connect(m_pendingAnchorTimer, &QTimer::timeout, this, [this]() {
-    if (m_pendingScrollConn) {
+    if(m_pendingScrollConn) {
       QObject::disconnect(m_pendingScrollConn);
       m_pendingScrollConn = {};
     }
@@ -83,7 +83,7 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
 
 bool DocumentView::loadFile(const QString &path) {
   QFile file(path);
-  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+  if(!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
     QMessageBox::warning(
         this, tr("mdv"),
         tr("Couldn't open %1:\n%2").arg(path, file.errorString()));
@@ -111,7 +111,7 @@ bool DocumentView::loadFile(const QString &path) {
   // happen here (we just read it) but fall back defensively.
   const QFileInfo info(path);
   m_filePath = info.canonicalFilePath();
-  if (m_filePath.isEmpty()) m_filePath = info.absoluteFilePath();
+  if(m_filePath.isEmpty()) m_filePath = info.absoluteFilePath();
 
   armWatch();
   emit fileLoaded(m_filePath);
@@ -125,7 +125,7 @@ void DocumentView::refresh() {
   applyDocumentFont();
   applyDocumentPalette();
 
-  if (m_filePath.isEmpty()) return;
+  if(m_filePath.isEmpty()) return;
 
   // Capture position before re-rendering; restore via the same anchor
   // machinery the Split actions use.
@@ -139,7 +139,7 @@ void DocumentView::applyDocumentFont() {
   QFont f = m_browser->document()->defaultFont();
 
   const QString family = s.value(QStringLiteral("fonts/prose")).toString();
-  if (!family.isEmpty()) f.setFamily(family);
+  if(!family.isEmpty()) f.setFamily(family);
 
   // Settings store an integer (the spinbox value). Use setPointSize so
   // Ctrl+wheel zoomIn/zoomOut — which works in points — scales it.
@@ -155,12 +155,14 @@ void DocumentView::applyDocumentPalette() {
   // QPalette::Base. Pull the theme's text.background / text.foreground
   // through the palette so the page color shows. Element-level CSS
   // rules in the template still win for headings, code, etc.
-  const QString bg = ContentTheme::active().color(QStringLiteral("text.background"));
-  const QString fg = ContentTheme::active().color(QStringLiteral("text.foreground"));
+  const QString bg =
+      ContentTheme::active().color(QStringLiteral("text.background"));
+  const QString fg =
+      ContentTheme::active().color(QStringLiteral("text.foreground"));
 
   QPalette p = m_browser->palette();
-  if (!bg.isEmpty()) p.setColor(QPalette::Base, QColor(bg));
-  if (!fg.isEmpty()) p.setColor(QPalette::Text, QColor(fg));
+  if(!bg.isEmpty()) p.setColor(QPalette::Base, QColor(bg));
+  if(!fg.isEmpty()) p.setColor(QPalette::Text, QColor(fg));
   m_browser->setPalette(p);
 }
 
@@ -168,7 +170,7 @@ void DocumentView::onAnchorClicked(const QUrl &url) {
   const QString scheme = url.scheme();
 
   // External: any non-file scheme (http/https/mailto/…) → system handler.
-  if (!scheme.isEmpty() && scheme != QLatin1String("file")) {
+  if(!scheme.isEmpty() && scheme != QLatin1String("file")) {
     QDesktopServices::openUrl(url);
     return;
   }
@@ -176,7 +178,7 @@ void DocumentView::onAnchorClicked(const QUrl &url) {
   // In-document anchor (#heading). Heading ids aren't generated yet (that
   // lands with the TOC work), so this currently finds nothing and no-ops —
   // wired here so it lights up once the ids exist.
-  if (url.path().isEmpty() && url.hasFragment()) {
+  if(url.path().isEmpty() && url.hasFragment()) {
     m_browser->scrollToAnchor(url.fragment());
     return;
   }
@@ -185,7 +187,7 @@ void DocumentView::onAnchorClicked(const QUrl &url) {
   // a new tab. Any #fragment is dropped — we just open the target file.
   const QString rawPath =
       (scheme == QLatin1String("file")) ? url.toLocalFile() : url.path();
-  if (rawPath.isEmpty()) return;
+  if(rawPath.isEmpty()) return;
 
   const QString base = QFileInfo(m_filePath).absolutePath();
   const QString resolved =
@@ -205,7 +207,7 @@ int DocumentView::topAnchor() const {
 void DocumentView::scrollToAnchor(int position) {
   m_pendingAnchor = position;
 
-  if (m_pendingScrollConn) {
+  if(m_pendingScrollConn) {
     QObject::disconnect(m_pendingScrollConn);
     m_pendingScrollConn = {};
   }
@@ -214,29 +216,29 @@ void DocumentView::scrollToAnchor(int position) {
   // happen in multiple passes (initial estimate, then refinements once
   // tables/code blocks measure themselves), and the right block y is
   // whatever the *last* pass produces.
-  m_pendingScrollConn = connect(
-      m_browser->verticalScrollBar(), &QAbstractSlider::rangeChanged, this,
-      [this](int, int) {
-        tryApplyAnchor();
-        m_pendingAnchorTimer->start(300);
-      });
+  m_pendingScrollConn =
+      connect(m_browser->verticalScrollBar(), &QAbstractSlider::rangeChanged,
+              this, [this](int, int) {
+                tryApplyAnchor();
+                m_pendingAnchorTimer->start(300);
+              });
 
   tryApplyAnchor();
   m_pendingAnchorTimer->start(300);
 }
 
 bool DocumentView::tryApplyAnchor() {
-  if (m_pendingAnchor < 0) return true;
+  if(m_pendingAnchor < 0) return true;
 
   QTextDocument *doc = m_browser->document();
   const int charCount = doc->characterCount();
-  if (charCount <= 1) return false;
+  if(charCount <= 1) return false;
 
   const int pos = std::min(m_pendingAnchor, std::max(0, charCount - 1));
   QTextCursor cursor(doc);
   cursor.setPosition(pos);
   QTextBlock block = cursor.block();
-  if (!block.isValid()) return false;
+  if(!block.isValid()) return false;
 
   const QRectF rect = doc->documentLayout()->blockBoundingRect(block);
   const QSizeF docSize = doc->size();
@@ -244,7 +246,7 @@ bool DocumentView::tryApplyAnchor() {
   // QRectF::isValid accepts (0,0,0,0); explicitly require a non-zero
   // block height before trusting the geometry. An unlaid block returns
   // a zero rect and we'd otherwise snap to y=0.
-  if (m_pendingAnchor > 0 && (docSize.height() <= 0 || rect.height() <= 0)) {
+  if(m_pendingAnchor > 0 && (docSize.height() <= 0 || rect.height() <= 0)) {
     return false;
   }
 
@@ -268,11 +270,11 @@ void DocumentView::onContextMenuRequested(const QPoint &pos) {
   // Walk up to find our containing group and let it append the same
   // Pin/Watch/Split/Close items the tab context menu shows.
   EditorGroup *group = nullptr;
-  for (QWidget *w = parentWidget(); w; w = w->parentWidget()) {
+  for(QWidget *w = parentWidget(); w; w = w->parentWidget()) {
     group = qobject_cast<EditorGroup *>(w);
-    if (group) break;
+    if(group) break;
   }
-  if (group) {
+  if(group) {
     menu->addSeparator();
     group->populateTabContextMenu(menu, this);
   }
@@ -282,36 +284,36 @@ void DocumentView::onContextMenuRequested(const QPoint &pos) {
 }
 
 QString DocumentView::displayName() const {
-  if (m_filePath.isEmpty()) return tr("(untitled)");
+  if(m_filePath.isEmpty()) return tr("(untitled)");
   return QFileInfo(m_filePath).fileName();
 }
 
 void DocumentView::setPinned(bool on) {
-  if (m_pinned == on) return;
+  if(m_pinned == on) return;
   m_pinned = on;
   emit pinnedChanged(on);
 }
 
 void DocumentView::setWatching(bool on) {
-  if (m_watching == on) return;
+  if(m_watching == on) return;
   m_watching = on;
-  if (!on) m_reloadTimer->stop();  // cancel any reload queued in the debounce
+  if(!on) m_reloadTimer->stop();  // cancel any reload queued in the debounce
   armWatch();
 }
 
 void DocumentView::armWatch() {
-  if (!m_watcher) return;
+  if(!m_watcher) return;
   // Clear the current path, then re-add if we should be watching. (removePaths
   // on an empty list is a no-op; an atomic save drops the path, so re-arming
   // after each reload re-points us at the new inode.)
   const QStringList watched = m_watcher->files();
-  if (!watched.isEmpty()) m_watcher->removePaths(watched);
-  if (m_watching && !m_filePath.isEmpty() && QFileInfo::exists(m_filePath))
+  if(!watched.isEmpty()) m_watcher->removePaths(watched);
+  if(m_watching && !m_filePath.isEmpty() && QFileInfo::exists(m_filePath))
     m_watcher->addPath(m_filePath);
 }
 
 void DocumentView::onFileChanged(const QString &) {
-  if (!m_watching) return;
+  if(!m_watching) return;
   // Coalesce the burst of events a save produces; reload once it settles.
   m_reloadTimer->start(120);
 }
@@ -320,10 +322,10 @@ void DocumentView::reloadFromDisk() {
   // Guard m_watching too: a reload queued in the debounce window must not fire
   // after watch was switched off (setWatching stops the timer, but this also
   // covers any other path that could leave it pending).
-  if (!m_watching || m_filePath.isEmpty()) return;
+  if(!m_watching || m_filePath.isEmpty()) return;
 
   QFile file(m_filePath);
-  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+  if(!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
     // Mid-save the file can be briefly unreadable (atomic rename in flight) —
     // bail quietly and re-arm; another change event will bring us back.
     armWatch();
@@ -359,12 +361,12 @@ int DocumentView::remapAnchor(int pos, const QString &oldText,
   // to [prefix, oldLen - suffix) in the old text's coordinates.
   int prefix = 0;
   const int maxPrefix = std::min(oldLen, newLen);
-  while (prefix < maxPrefix && oldText[prefix] == newText[prefix]) ++prefix;
+  while(prefix < maxPrefix && oldText[prefix] == newText[prefix]) ++prefix;
 
   int suffix = 0;
   const int maxSuffix = std::min(oldLen, newLen) - prefix;
-  while (suffix < maxSuffix &&
-         oldText[oldLen - 1 - suffix] == newText[newLen - 1 - suffix]) {
+  while(suffix < maxSuffix &&
+        oldText[oldLen - 1 - suffix] == newText[newLen - 1 - suffix]) {
     ++suffix;
   }
 
@@ -372,12 +374,13 @@ int DocumentView::remapAnchor(int pos, const QString &oldText,
   const int changeEnd = oldLen - suffix;  // exclusive
 
   int mapped;
-  if (pos <= changeStart) {
+  if(pos <= changeStart) {
     mapped = pos;  // edit was below the anchor — offset unchanged
-  } else if (pos >= changeEnd) {
+  } else if(pos >= changeEnd) {
     mapped = pos + (newLen - oldLen);  // edit was above — shift by net delta
   } else {
-    mapped = changeStart;  // anchor sat inside the edit — best-effort positional
+    mapped =
+        changeStart;  // anchor sat inside the edit — best-effort positional
   }
   return std::clamp(mapped, 0, newLen);
 }

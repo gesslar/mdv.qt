@@ -18,21 +18,21 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) { setAcceptDrops(true); }
 const char *TabBar::mimeType() { return "application/x-mdv-tab"; }
 
 bool TabBar::draggedTabIsPinned(const QMimeData *mime) {
-  if (!mime || !mime->hasFormat(mimeType())) return false;
+  if(!mime || !mime->hasFormat(mimeType())) return false;
   QByteArray payload = mime->data(mimeType());
   QDataStream ds(payload);
   qintptr ptr = 0;
   qint32 idx = -1;
   ds >> ptr >> idx;
-  if (ds.status() != QDataStream::Ok) return false;
+  if(ds.status() != QDataStream::Ok) return false;
   auto *group = reinterpret_cast<EditorGroup *>(ptr);
-  if (!group) return false;
+  if(!group) return false;
   auto *doc = group->documentAt(idx);
   return doc && doc->isPinned();
 }
 
 void TabBar::mousePressEvent(QMouseEvent *e) {
-  if (e->button() == Qt::LeftButton) {
+  if(e->button() == Qt::LeftButton) {
     m_pressIndex = tabAt(e->pos());
     m_pressPos = e->pos();
     // Capture the pressed tab's page widget (identity) — within-bar reordering
@@ -45,24 +45,24 @@ void TabBar::mousePressEvent(QMouseEvent *e) {
 }
 
 void TabBar::mouseMoveEvent(QMouseEvent *e) {
-  if (m_dragInFlight) return;
+  if(m_dragInFlight) return;
 
   // Defer to built-in handling unless we're tracking a left-button drag
   // that started on a real tab.
-  if (!(e->buttons() & Qt::LeftButton) || m_pressIndex < 0) {
+  if(!(e->buttons() & Qt::LeftButton) || m_pressIndex < 0) {
     QTabBar::mouseMoveEvent(e);
     return;
   }
 
   // Inside the bar — let QTabBar handle move-within-bar reordering.
-  if (rect().contains(e->pos())) {
+  if(rect().contains(e->pos())) {
     QTabBar::mouseMoveEvent(e);
     return;
   }
 
   // Outside, but only past the start-drag threshold.
-  if ((e->pos() - m_pressPos).manhattanLength() <
-      QApplication::startDragDistance()) {
+  if((e->pos() - m_pressPos).manhattanLength() <
+     QApplication::startDragDistance()) {
     return;
   }
 
@@ -70,7 +70,7 @@ void TabBar::mouseMoveEvent(QMouseEvent *e) {
   // it within the bar since the press, leaving m_pressIndex stale.
   auto *group = qobject_cast<EditorGroup *>(parentWidget());
   const int idx = group ? group->indexOf(m_pressTab) : -1;
-  if (idx < 0) return;
+  if(idx < 0) return;
   startCrossGroupDrag(idx);
 }
 
@@ -81,12 +81,12 @@ void TabBar::mouseReleaseEvent(QMouseEvent *e) {
 }
 
 void TabBar::dragEnterEvent(QDragEnterEvent *e) {
-  if (e->mimeData()->hasFormat(mimeType())) e->acceptProposedAction();
+  if(e->mimeData()->hasFormat(mimeType())) e->acceptProposedAction();
 }
 
 void TabBar::dragMoveEvent(QDragMoveEvent *e) {
-  if (!e->mimeData()->hasFormat(mimeType())) return;
-  if (draggedTabIsPinned(e->mimeData())) {
+  if(!e->mimeData()->hasFormat(mimeType())) return;
+  if(draggedTabIsPinned(e->mimeData())) {
     e->ignore();  // pinned tabs can't change groups — forbidden cursor
     return;
   }
@@ -94,23 +94,23 @@ void TabBar::dragMoveEvent(QDragMoveEvent *e) {
 }
 
 void TabBar::dropEvent(QDropEvent *e) {
-  if (!e->mimeData()->hasFormat(mimeType())) return;
-  if (draggedTabIsPinned(e->mimeData())) return;  // pinned: locked to its group
+  if(!e->mimeData()->hasFormat(mimeType())) return;
+  if(draggedTabIsPinned(e->mimeData())) return;  // pinned: locked to its group
 
   QByteArray payload = e->mimeData()->data(mimeType());
   QDataStream ds(payload);
   qintptr ptr = 0;
   qint32 idx = -1;
   ds >> ptr >> idx;
-  if (ds.status() != QDataStream::Ok) return;
+  if(ds.status() != QDataStream::Ok) return;
 
   auto *source = reinterpret_cast<EditorGroup *>(ptr);
   auto *target = qobject_cast<EditorGroup *>(parentWidget());
-  if (!source || !target) return;
-  if (source == target) return;  // same-group tab-bar drop is a no-op
+  if(!source || !target) return;
+  if(source == target) return;  // same-group tab-bar drop is a no-op
 
   DocumentView *doc = source->takeDocument(idx);
-  if (!doc) return;
+  if(!doc) return;
 
   target->addDocument(doc);
   e->acceptProposedAction();
@@ -118,7 +118,7 @@ void TabBar::dropEvent(QDropEvent *e) {
 
 void TabBar::startCrossGroupDrag(int tabIndex) {
   auto *group = qobject_cast<EditorGroup *>(parentWidget());
-  if (!group) return;
+  if(!group) return;
 
   QByteArray payload;
   {
@@ -135,7 +135,7 @@ void TabBar::startCrossGroupDrag(int tabIndex) {
   // A small pixmap of the tab being dragged — gives the cursor something
   // visually meaningful to carry.
   const QRect r = tabRect(tabIndex);
-  if (r.isValid()) {
+  if(r.isValid()) {
     QPixmap pix = grab(r);
     drag->setPixmap(pix);
     drag->setHotSpot(QPoint(pix.width() / 2, pix.height() / 2));

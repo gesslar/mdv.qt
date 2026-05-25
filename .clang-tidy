@@ -1,0 +1,33 @@
+# clang-tidy config for mdv — general C++ static analysis (Qt-specific checks
+# live in clazy, not here). Run with `make tidy`, which feeds it
+# build/compile_commands.json.
+#
+# The list below is a moderate starter set: enable whole families, then mute
+# the checks that are noisy for a Qt GUI app or that fight the house style.
+# Tune freely — this is the dial.
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  readability-*,
+  clang-analyzer-*,
+  -modernize-use-trailing-return-type,
+  -modernize-use-nodiscard,
+  -readability-braces-around-statements,
+  -readability-identifier-length,
+  -readability-magic-numbers,
+  -readability-implicit-bool-conversion,
+  -readability-function-cognitive-complexity,
+  -bugprone-easily-swappable-parameters
+
+# Don't fail the run on findings yet — report only. Set to a check pattern
+# (or '*') once the tree is clean and you want CI to enforce it.
+WarningsAsErrors: ''
+
+# Only diagnose our own headers (src/), never Qt/KSyntaxHighlighting/system ones.
+HeaderFilterRegex: '.*/src/[^/]+\.(h|hpp)$'
+
+# clang-tidy's check names double as readability-* naming rules; we don't opt
+# into identifier-naming, so nothing is enforced there.
+FormatStyle: file

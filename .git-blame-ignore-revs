@@ -1,0 +1,12 @@
+# Commits listed here are skipped by `git blame` so bulk, no-logic changes
+# (mass reformats, renames) don't mask who actually authored each line.
+#
+# List full 40-char commit SHAs, one per line. Add a commit AFTER you've made
+# it (the SHA can't exist in the same commit it names) — so: run `make format`,
+# commit it, then paste its hash here in a follow-up commit.
+#
+# Active locally once per clone via:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub honors this file automatically.
+
+# <hash>  clang-format the tree to .clang-format (whitespace only)

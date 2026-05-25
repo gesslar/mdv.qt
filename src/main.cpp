@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
   window.show();
 
   const QStringList args = parser.positionalArguments();
-  for (const QString &path : args) window.openFile(path);
+  for(const QString &path : args) window.openFile(path);
 
   return app.exec();
 }

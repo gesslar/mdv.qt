@@ -111,7 +111,8 @@ private:
 
   // The tab's trailing button is ours, not QTabBar's auto close button, so we
   // can swap it between close (×, click closes) and pin (click unpins). Owning
-  // it for every tab avoids QTabBar's inability to restore an auto close button.
+  // it for every tab avoids QTabBar's inability to restore an auto close
+  // button.
   void installTabButton(int index, DocumentView *doc);
   void refreshTabButton(DocumentView *doc);
 
