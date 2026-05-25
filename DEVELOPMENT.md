@@ -232,7 +232,9 @@ resources/
 examples/              # showcase docs (markdown elements, syntax highlighting)
 CMakeLists.txt
 Makefile               # build shortcuts (wraps CMake + Ninja)
-THEMING.md             # how to author content themes
+docs/
+  THEMING.md     # how to author content themes
+  templating.md  # the content-stylesheet templating internals
 ```
 
 ## Settings & state

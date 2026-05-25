@@ -3,7 +3,7 @@
 # manifest and removes each path, so it behaves the same on Linux/macOS/Windows
 # without relying on a platform shell.
 #
-#   cmake -DMANIFEST=<build-dir>/install_manifest.txt -P cmake_uninstall.cmake
+#   cmake -DMANIFEST=<build-dir>/install_manifest.txt -P cmake/cmake_uninstall.cmake
 #
 # The manifest stores absolute paths as actually installed, so uninstall hits
 # the right location regardless of the PREFIX used at install time. Empty

@@ -11,7 +11,7 @@ A fast, minimal desktop Markdown viewer built with Qt 6 and C++.
   colored from the active theme
 - **Content themes** — swappable color/spacing themes for the rendered
   document; three dark themes bundled, and you can author your own
-  (see [THEMING.md](THEMING.md))
+  (see [THEMING.md](docs/THEMING.md))
 - **Tabs and splits** — open documents in tabs, split a group right or down,
   drag tabs between groups
 - **Drag-and-drop** — drop markdown files onto the window to open them
@@ -51,7 +51,7 @@ Or drag a markdown file onto the window.
 Content themes control the **colors and spacing** of the rendered document
 (fonts come from Preferences, so a theme is portable across font choices).
 Three dark themes ship with mdv; authoring your own is a small JSON file —
-see **[THEMING.md](THEMING.md)**.
+see **[THEMING.md](docs/THEMING.md)**.
 
 ## License
 

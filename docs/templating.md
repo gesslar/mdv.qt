@@ -1,7 +1,7 @@
 # Content stylesheet templating
 
 How a rendered Markdown document gets its styling. This is developer-facing
-internals; for *authoring* a theme, see [`../THEMING.md`](../THEMING.md).
+internals; for *authoring* a theme, see [`THEMING.md`](THEMING.md).
 
 ## Three channels (and why)
 

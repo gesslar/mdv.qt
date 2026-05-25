@@ -88,7 +88,7 @@ install: release
 # install`. No PREFIX needed here — the manifest holds absolute paths.
 # Refresh the caches afterwards so the removed entry drops out of the menu.
 uninstall:
-	cmake -DMANIFEST=$(RELEASE_DIR)/install_manifest.txt -P cmake_uninstall.cmake
+	cmake -DMANIFEST=$(RELEASE_DIR)/install_manifest.txt -P cmake/cmake_uninstall.cmake
 	-command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$(PREFIX)/share/applications"
 	-command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6
 

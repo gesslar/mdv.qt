@@ -167,9 +167,9 @@ MD040).
 3. Add the file to `resources/resources.qrc`.
 4. Rebuild (`make build`). The new theme appears in Preferences by its `name`.
 
-See [`examples/`](examples/) for documents that exercise every element and
+See [`examples/`](../examples/) for documents that exercise every element and
 language — open them and switch themes to check your work.
 
 Curious how these keys become the rendered stylesheet (placeholder resolution,
 the alpha handling, font wiring)? That's developer internals in
-[`docs/templating.md`](docs/templating.md).
+[`templating.md`](templating.md).
