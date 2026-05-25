@@ -102,6 +102,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   // shortcuts in step with the actual open/close/switch state.
   connect(m_area, &EditorArea::currentDocumentChanged, this,
           &MainWindow::updateFileMenuState);
+  // Pin/unpin doesn't change the current document, but it flips whether the
+  // bulk closes have anything to act on — refresh on it too.
+  connect(m_area, &EditorArea::pinStateChanged, this,
+          &MainWindow::updateFileMenuState);
 
   loadRecentFiles();
   rebuildRecentMenu();

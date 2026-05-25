@@ -67,6 +67,10 @@ signals:
   // clicked; subscribers open it through their normal openFile path.
   void openFileRequested(const QString &path);
 
+  // Re-emission of a pane's pinStateChanged — a tab was pinned/unpinned, which
+  // can change whether bulk-close actions are no-ops.
+  void pinStateChanged();
+
 private slots:
   void onPaneActivated();
   void onPaneEmpty();

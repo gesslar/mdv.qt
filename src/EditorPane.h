@@ -81,6 +81,10 @@ signals:
   // link was clicked and should open as a new tab.
   void openFileRequested(const QString &path);
 
+  // A contained document's pinned state changed. Surfaced so the window can
+  // refresh menu/shortcut enable-state (bulk closes skip pinned tabs).
+  void pinStateChanged();
+
 protected:
   void focusInEvent(QFocusEvent *e) override;
   void mousePressEvent(QMouseEvent *e) override;

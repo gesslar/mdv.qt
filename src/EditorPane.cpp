@@ -284,6 +284,9 @@ void EditorPane::onDocPinnedChanged() {
   // it into the pinned cluster (or back out to the unpinned region).
   refreshTabButton(qobject_cast<DocumentView *>(sender()));
   enforcePinPartition();
+  // Bulk closes skip pinned tabs, so a pin/unpin can flip whether they're
+  // no-ops — let the window re-evaluate the menu/shortcut enable-state.
+  emit pinStateChanged();
 }
 
 void EditorPane::enforcePinPartition() {
