@@ -9,4 +9,5 @@
 #   git config blame.ignoreRevsFile .git-blame-ignore-revs
 # GitHub honors this file automatically.
 
-# <hash>  clang-format the tree to .clang-format (whitespace only)
+# clang-format the tree to .clang-format (+ introduced the lint tooling)
+91d458dc47bf8d5fad35ffd2353deff3d0980eab
