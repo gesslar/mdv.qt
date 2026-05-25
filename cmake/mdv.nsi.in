@@ -265,7 +265,15 @@ Function un.onInit
 
   ; Fallback: infer from $INSTDIR. NSIS sets $INSTDIR to the uninstaller's
   ; own location at startup, so this is reliable.
-  StrCpy $0 "$INSTDIR" 4
+  ;
+  ; StrCpy's third arg is `maxlen` — we want to grab the first N chars of
+  ; $INSTDIR where N == length($PROGRAMFILES64), then compare. The earlier
+  ; hard-coded `4` was a bug: copying only "C:\P" then comparing against
+  ; the full "C:\Program Files" string was always false, so per-machine
+  ; uninstalls launched directly from Explorer landed in HKCU and stranded
+  ; the real HKLM entries. (Caught by Greptile on PR #11.)
+  StrLen $1 "$PROGRAMFILES64"
+  StrCpy $0 "$INSTDIR" $1
   ${If} "$0" == "$PROGRAMFILES64"
     StrCpy $InstallMode "all"
     SetShellVarContext all
