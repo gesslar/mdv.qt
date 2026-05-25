@@ -8,7 +8,10 @@
 #
 # The installer offers the user a choice between per-user (no admin, install
 # to %LOCALAPPDATA%\Programs\mdv) and per-machine (admin, Program Files\mdv)
-# via NSIS MultiUser.nsh. Shortcuts and registry hive follow that choice.
+# via a custom nsDialogs page + ExecShell "runas" — NOT NSIS's MultiUser.nsh,
+# whose Highest mode triggers UAC at launch and Standard never elevates.
+# See cmake/mdv.nsi.in for the rationale. Shortcuts + registry hive follow
+# the user's choice.
 #
 # Prereqs:
 #   - NSIS 3.x (makensis.exe) — `choco install nsis` or install from
