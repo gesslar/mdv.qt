@@ -1,0 +1,292 @@
+; mdv NSIS installer template — configured by CMake via @VAR@ substitution.
+;
+; Goal: match electron-builder's `oneClick:false + allowElevation:true`
+; behaviour. The installer starts UNPRIVILEGED, the user sees a wizard page
+; asking per-user vs per-machine, and UAC only appears if they pick
+; per-machine and aren't already an admin.
+;
+; Why not stock NSIS MultiUser.nsh: its `Highest` execution level triggers
+; UAC at launch — before the user even sees the choice. Its `Standard` level
+; never elevates. Neither is "elevate only if needed", which is what we want.
+; The third-party NsisMultiUser plugin handles this but adds a ~750-line
+; vendored dependency. Hand-rolling it is ~50 extra lines and keeps the
+; script self-contained.
+;
+; CMake feeds two -D defines:
+;   STAGE_DIR — the staged install tree (mdv.exe + Qt runtime, laid down by
+;               `cmake --install`) that File /r packages into the installer
+;   OUTFILE   — the path to write the resulting installer .exe to
+
+Unicode true
+SetCompressor /SOLID lzma
+
+!define APPNAME       "mdv"
+!define VERSION       "@PROJECT_VERSION@"
+!define COMPANY       "@CPACK_PACKAGE_VENDOR@"
+!define HOMEPAGE      "@CPACK_PACKAGE_HOMEPAGE_URL@"
+!define CONTACT       "@CPACK_PACKAGE_CONTACT@"
+; mdv.exe lives under $INSTDIR\bin (don't end this comment with a backslash —
+; NSIS would treat the trailing \ as a line-continuation and swallow the next
+; !define).
+!define MAINEXE       "mdv.exe"
+!define PROGID        "mdv.markdown"
+!define UNINSTKEY     "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APPNAME}"
+
+; Start the process unprivileged. We trigger UAC manually further down if
+; the user picks per-machine on the install-mode page.
+RequestExecutionLevel user
+
+!include "MUI2.nsh"
+!include "LogicLib.nsh"
+!include "nsDialogs.nsh"
+!include "FileFunc.nsh"
+!include "WinMessages.nsh"
+
+Name "${APPNAME}"
+OutFile "${OUTFILE}"
+BrandingText "${APPNAME} ${VERSION}"
+ShowInstDetails show
+ShowUninstDetails show
+
+; --- State -----------------------------------------------------------------
+; $InstallMode: "current" or "all". Drives $INSTDIR default, SetShellVarContext
+; (and therefore SHCTX), shortcut placement, and which Uninstall hive owns
+; the Add/Remove Programs entry.
+Var InstallMode
+Var IsAdmin
+
+; Custom-page dialog handles (kept across page show/leave callbacks).
+Var ScopeDlg
+Var RadioCurrent
+Var RadioAll
+
+; --- UI --------------------------------------------------------------------
+!define MUI_ICON   "@MDV_ICON_PATH@"
+!define MUI_UNICON "@MDV_ICON_PATH@"
+!define MUI_ABORTWARNING
+
+!insertmacro MUI_PAGE_LICENSE "@MDV_LICENSE_PATH@"
+Page custom ScopePage ScopePageLeave    ; per-user vs per-machine
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_PAGE_FINISH
+
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+
+!insertmacro MUI_LANGUAGE "English"
+
+; --- Init ------------------------------------------------------------------
+; Runs before the first page. Detects whether we're already admin (so the
+; mode page can skip the relaunch dance for per-machine), parses /AllUsers
+; or /CurrentUser flags that the *relaunched* instance carries, and falls
+; back to per-user defaults otherwise.
+Function .onInit
+  UserInfo::GetAccountType
+  Pop $0
+  ${If} $0 == "Admin"
+    StrCpy $IsAdmin "1"
+  ${Else}
+    StrCpy $IsAdmin "0"
+  ${EndIf}
+
+  ${GetParameters} $R0
+
+  ClearErrors
+  ${GetOptions} $R0 "/AllUsers" $R1
+  ${IfNot} ${Errors}
+    StrCpy $InstallMode "all"
+    StrCpy $INSTDIR "$PROGRAMFILES64\${APPNAME}"
+    SetShellVarContext all
+    Return
+  ${EndIf}
+
+  ClearErrors
+  ${GetOptions} $R0 "/CurrentUser" $R1
+  ${IfNot} ${Errors}
+    StrCpy $InstallMode "current"
+    StrCpy $INSTDIR "$LOCALAPPDATA\Programs\${APPNAME}"
+    SetShellVarContext current
+    Return
+  ${EndIf}
+
+  ; Default: per-user, no elevation.
+  StrCpy $InstallMode "current"
+  StrCpy $INSTDIR "$LOCALAPPDATA\Programs\${APPNAME}"
+  SetShellVarContext current
+FunctionEnd
+
+; --- Install-mode page -----------------------------------------------------
+Function ScopePage
+  ; When the installer is relaunched with /AllUsers or /CurrentUser the user
+  ; has already picked — skip the page so the elevated instance doesn't ask
+  ; the same question again.
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/AllUsers" $R1
+  ${IfNot} ${Errors}
+    Abort
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $R0 "/CurrentUser" $R1
+  ${IfNot} ${Errors}
+    Abort
+  ${EndIf}
+
+  !insertmacro MUI_HEADER_TEXT "Choose Installation Type" "For whom should ${APPNAME} be installed?"
+
+  nsDialogs::Create 1018
+  Pop $ScopeDlg
+  ${If} $ScopeDlg == error
+    Abort
+  ${EndIf}
+
+  ${NSD_CreateRadioButton} 0 0 100% 12u "Install for &me only (no admin required)"
+  Pop $RadioCurrent
+  ${NSD_CreateLabel}       15u 14u 100% 18u "Installs to your AppData. Doesn't affect other users on this PC."
+  Pop $0
+
+  ${NSD_CreateRadioButton} 0 40u 100% 12u "Install for &all users (requires admin)"
+  Pop $RadioAll
+  ${NSD_CreateLabel}       15u 54u 100% 18u "Installs to Program Files. Windows will ask you to approve a UAC prompt."
+  Pop $0
+
+  ${If} $InstallMode == "all"
+    ${NSD_SetState} $RadioAll ${BST_CHECKED}
+  ${Else}
+    ${NSD_SetState} $RadioCurrent ${BST_CHECKED}
+  ${EndIf}
+
+  nsDialogs::Show
+FunctionEnd
+
+Function ScopePageLeave
+  ${NSD_GetState} $RadioAll $0
+  ${If} $0 == ${BST_CHECKED}
+    StrCpy $InstallMode "all"
+    StrCpy $INSTDIR "$PROGRAMFILES64\${APPNAME}"
+    SetShellVarContext all
+
+    ; Per-machine + already admin → continue in this process. Per-machine +
+    ; standard user → relaunch ourselves with `runas`, which is what triggers
+    ; the UAC prompt. The elevated instance picks up the /AllUsers flag in
+    ; its .onInit and skips this page.
+    ${If} $IsAdmin == "0"
+      HideWindow
+      ExecShell "runas" "$EXEPATH" "/AllUsers"
+      ; Whether UAC was accepted (a new elevated instance is now running) or
+      ; cancelled (nothing happened), this user-mode instance is done.
+      Quit
+    ${EndIf}
+  ${Else}
+    StrCpy $InstallMode "current"
+    StrCpy $INSTDIR "$LOCALAPPDATA\Programs\${APPNAME}"
+    SetShellVarContext current
+  ${EndIf}
+FunctionEnd
+
+; --- Install ---------------------------------------------------------------
+; SHCTX resolves to HKLM when shell context is `all`, HKCU when `current` —
+; so file associations, shortcuts and the Add/Remove Programs entry land in
+; the right hive automatically.
+Section "Install"
+  SetOutPath "$INSTDIR"
+  File /r "${STAGE_DIR}\*.*"
+
+  WriteRegStr SHCTX "Software\Classes\.md"                              "" "${PROGID}"
+  WriteRegStr SHCTX "Software\Classes\.markdown"                        "" "${PROGID}"
+  WriteRegStr SHCTX "Software\Classes\.mkd"                             "" "${PROGID}"
+  WriteRegStr SHCTX "Software\Classes\${PROGID}"                        "" "Markdown document"
+  WriteRegStr SHCTX "Software\Classes\${PROGID}\DefaultIcon"            "" "$INSTDIR\bin\${MAINEXE},0"
+  WriteRegStr SHCTX "Software\Classes\${PROGID}\shell\open\command"     "" '$\"$INSTDIR\bin\${MAINEXE}$\" $\"%1$\"'
+
+  CreateShortcut "$SMPROGRAMS\${APPNAME}.lnk" "$INSTDIR\bin\${MAINEXE}"
+  CreateShortcut "$DESKTOP\${APPNAME}.lnk"    "$INSTDIR\bin\${MAINEXE}"
+
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+  ; The /AllUsers /CurrentUser flag on the uninstall command lets un.onInit
+  ; pick the same hive at uninstall time without re-guessing from $INSTDIR.
+  StrCpy $0 "/CurrentUser"
+  ${If} $InstallMode == "all"
+    StrCpy $0 "/AllUsers"
+  ${EndIf}
+  WriteRegStr SHCTX "${UNINSTKEY}" "DisplayName"           "${APPNAME}"
+  WriteRegStr SHCTX "${UNINSTKEY}" "DisplayVersion"        "${VERSION}"
+  WriteRegStr SHCTX "${UNINSTKEY}" "DisplayIcon"           "$INSTDIR\bin\${MAINEXE}"
+  WriteRegStr SHCTX "${UNINSTKEY}" "Publisher"             "${COMPANY}"
+  WriteRegStr SHCTX "${UNINSTKEY}" "URLInfoAbout"          "${HOMEPAGE}"
+  WriteRegStr SHCTX "${UNINSTKEY}" "Contact"               "${CONTACT}"
+  WriteRegStr SHCTX "${UNINSTKEY}" "InstallLocation"       "$INSTDIR"
+  WriteRegStr SHCTX "${UNINSTKEY}" "UninstallString"       '$\"$INSTDIR\Uninstall.exe$\" $0'
+  WriteRegStr SHCTX "${UNINSTKEY}" "QuietUninstallString"  '$\"$INSTDIR\Uninstall.exe$\" /S $0'
+  WriteRegDWORD SHCTX "${UNINSTKEY}" "NoModify" 1
+  WriteRegDWORD SHCTX "${UNINSTKEY}" "NoRepair" 1
+
+  System::Call 'Shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
+SectionEnd
+
+; --- Uninstall init --------------------------------------------------------
+; Same flag-driven mode detection as the installer side, with a fallback to
+; check whether the install dir starts with $PROGRAMFILES64 (per-machine) or
+; $LOCALAPPDATA (per-user) when the flag is missing — e.g. if someone runs
+; Uninstall.exe directly from Explorer.
+Function un.onInit
+  UserInfo::GetAccountType
+  Pop $0
+  ${If} $0 == "Admin"
+    StrCpy $IsAdmin "1"
+  ${Else}
+    StrCpy $IsAdmin "0"
+  ${EndIf}
+
+  ${GetParameters} $R0
+
+  ClearErrors
+  ${GetOptions} $R0 "/AllUsers" $R1
+  ${IfNot} ${Errors}
+    StrCpy $InstallMode "all"
+    SetShellVarContext all
+    ; Re-elevate ourselves if a non-admin double-clicks the per-machine
+    ; uninstaller. Same dance as the installer side.
+    ${If} $IsAdmin == "0"
+      HideWindow
+      ExecShell "runas" "$EXEPATH" "/AllUsers _?=$INSTDIR"
+      Quit
+    ${EndIf}
+    Return
+  ${EndIf}
+  ClearErrors
+  ${GetOptions} $R0 "/CurrentUser" $R1
+  ${IfNot} ${Errors}
+    StrCpy $InstallMode "current"
+    SetShellVarContext current
+    Return
+  ${EndIf}
+
+  ; Fallback: infer from $INSTDIR. NSIS sets $INSTDIR to the uninstaller's
+  ; own location at startup, so this is reliable.
+  StrCpy $0 "$INSTDIR" 4
+  ${If} "$0" == "$PROGRAMFILES64"
+    StrCpy $InstallMode "all"
+    SetShellVarContext all
+  ${Else}
+    StrCpy $InstallMode "current"
+    SetShellVarContext current
+  ${EndIf}
+FunctionEnd
+
+; --- Uninstall -------------------------------------------------------------
+Section "Uninstall"
+  Delete "$SMPROGRAMS\${APPNAME}.lnk"
+  Delete "$DESKTOP\${APPNAME}.lnk"
+
+  DeleteRegKey SHCTX "Software\Classes\.md"
+  DeleteRegKey SHCTX "Software\Classes\.markdown"
+  DeleteRegKey SHCTX "Software\Classes\.mkd"
+  DeleteRegKey SHCTX "Software\Classes\${PROGID}"
+  DeleteRegKey SHCTX "${UNINSTKEY}"
+
+  RMDir /r "$INSTDIR"
+
+  System::Call 'Shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)'
+SectionEnd

@@ -11,10 +11,11 @@
 
 > The rule for the two non-Qt deps: take them from the system package manager
 > wherever it has them. On Linux that's both (install with the commands below).
-> md4c has no package on Windows, so CMake fetches and builds it in-tree there —
-> nothing to install. KSyntaxHighlighting isn't carried by the Qt installer on
-> Windows or by Homebrew on macOS; install it via KDE Craft (or MacPorts) and
-> point CMake at it with `-DCMAKE_PREFIX_PATH`. The per-platform steps are below.
+> On Windows neither is packaged, so CMake fetches and builds them in-tree
+> (md4c, plus KSyntaxHighlighting + extra-cmake-modules) — nothing to install
+> beyond Qt + a C++ toolchain. On macOS, KSyntaxHighlighting isn't carried by
+> Homebrew; install it via MacPorts (or KDE Craft) and point CMake at it with
+> `-DCMAKE_PREFIX_PATH`. The per-platform steps are below.
 
 ## Installing dependencies
 
@@ -60,26 +61,16 @@ KSyntaxHighlighting (KDE Frameworks 6) isn't in Homebrew core; on macOS install 
 
 ### Windows
 
-Install the official **[Qt online installer](https://www.qt.io/download-qt-installer)** and select Qt 6.5+ with **MSVC 2022 64-bit** (or MinGW if you prefer). The installer also bundles CMake, Ninja, and Qt Creator.
+Install the official **[Qt online installer](https://www.qt.io/download-qt-installer)** and select Qt 6.5+ with **MinGW 64-bit** (the version this project was developed against; MSVC 2022 64-bit also works). Include **Qt Linguist / qttools** in the install — KSyntaxHighlighting's translation step needs `lrelease` on `PATH`. The Qt installer also bundles CMake, Ninja, and Qt Creator.
 
-If you'd rather use system tooling: install **Visual Studio 2022** (with the "Desktop development with C++" workload) and a standalone CMake.
+Two extra prereqs that the Qt installer doesn't provide:
 
-**md4c** has no Windows package, so CMake fetches and builds it in-tree — nothing to install.
+- **Git for Windows** — `git` is needed at *configure* time (CMake clones extra-cmake-modules from invent.kde.org) and Git for Windows also ships a Perl at `C:\Program Files\Git\usr\bin\perl.exe`, which is what KSyntaxHighlighting needs to generate its data tables. CMakeLists auto-detects this Perl when one isn't already on `PATH`. If you'd rather use Strawberry Perl: `choco install strawberryperl`.
+- **NSIS 3.x** (`makensis.exe`) — only needed for `make exe` (building the installer). `choco install nsis`, or download from <https://nsis.sourceforge.io/> and add `NSIS\Bin` to `PATH`.
 
-**KSyntaxHighlighting** isn't bundled by the Qt installer. Get it from **[KDE Craft](https://community.kde.org/Craft)**, KDE's build system for Windows (it pulls in extra-cmake-modules and the syntax/theme data for you):
+Neither **md4c** nor **KSyntaxHighlighting** has a Windows package, so CMake fetches and builds both in-tree on Windows (along with extra-cmake-modules, which KSH needs). Nothing extra to install for them — `cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release` and `cmake --build build-release` is enough on a clean machine that has Qt + a compiler + Git.
 
-```powershell
-# In a Craft shell, after the one-time Craft setup:
-craft kf6-syntax-highlighting
-```
-
-Then point CMake at the Craft prefix when configuring:
-
-```powershell
-cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=C:/CraftRoot
-```
-
-(Use your actual `CraftRoot` path. The same `-DCMAKE_PREFIX_PATH` trick is how the macOS MacPorts/Craft install gets found.)
+The first configure also clones and locally installs **extra-cmake-modules** into `build-release/_ecm-prefix/` (a build-tree-only install — nothing leaks into the system). That step is cached, so reconfigures don't re-clone.
 
 ## Building
 
@@ -141,8 +132,68 @@ soname packages, which are the wrong names for a `.deb`. Keep it in step with
 the link line if you add a library. RPM `Requires:` are auto-detected by
 `rpmbuild`.
 
-Windows and macOS will get their own `Makefile.dist.windows` /
-`Makefile.dist.macos` includes when those build paths are ready.
+macOS will get its own `Makefile.dist.macos` include when that build path is
+ready.
+
+## Packaging (Windows)
+
+The Windows installer is an NSIS `.exe` built with CPack from the same
+`install()` rules `cmake --install` uses (the binary, the icon, and a
+windeployqt step that pulls in Qt + plugins + translations + the mingw
+runtime DLLs). The target lives in `Makefile.dist.windows` — the top-level
+Makefile pulls in the per-OS dist include for the host automatically.
+Installer metadata (file associations, shortcuts, icons) lives in
+`cmake/Packaging.cmake`.
+
+```powershell
+make exe     # → dist\mdv-<version>-win64.exe
+make dist    # same (alias, parallel to Linux's `make dist`)
+```
+
+`make exe` builds the release binary first, then runs `cpack -G NSIS`;
+the artifact lands in `dist\`. **Packaging tooling**: NSIS 3.x must be
+installed and `makensis.exe` on `PATH` (see the Windows install section
+above).
+
+The resulting installer:
+
+- Starts **unprivileged** (manifest `requestedExecutionLevel="asInvoker"`).
+  No UAC prompt appears on launch.
+- Shows a custom "Choose Installation Type" page after the licence with two
+  radio buttons:
+  - **Install for me only** (default) → installs to `%LOCALAPPDATA%\Programs\mdv\`,
+    HKCU. No elevation needed.
+  - **Install for all users** → installs to `Program Files\mdv\`, HKLM. If
+    the user isn't already an admin, the installer **relaunches itself with
+    `runas`** at this point, which is what finally triggers the UAC prompt.
+    The elevated instance picks up a `/AllUsers` flag and skips the choice
+    page so the user isn't asked twice.
+- The next page lets the user override the install directory.
+- Lays down `bin\mdv.exe` + Qt DLLs + plugins + translations + `mdv.ico`,
+  matching the windeployqt layout (`qt.conf` in `bin\` points the runtime at
+  `..\plugins` and `..\translations`).
+- Creates Start Menu and Desktop shortcuts. NSIS resolves `$SMPROGRAMS` /
+  `$DESKTOP` against the chosen install scope — per-user installs target
+  the user's own shell folders (including OneDrive-synced Desktops);
+  per-machine installs target the All Users folders.
+- Registers file associations for `.md` / `.markdown` / `.mkd` against an
+  `mdv.markdown` ProgID under `SHCTX\Software\Classes` (= `HKCU` per-user,
+  `HKLM` per-machine). The uninstaller removes them.
+- Writes an Add/Remove Programs entry under the same hive so the install
+  shows up in Apps & Features with publisher, version, homepage, and a
+  scope-aware uninstall command (`/CurrentUser` or `/AllUsers`).
+
+Two NSIS-related notes for anyone editing `cmake/mdv.nsi.in`:
+
+- **We don't use CPack's bundled NSIS template** — it hard-codes
+  `RequestExecutionLevel admin`, which forces UAC at launch even on per-user
+  installs. The custom `.nsi.in` is driven by a `package_nsis` CMake target.
+  Linux's CPack path for `.deb` / `.rpm` is unaffected.
+- **We don't use NSIS's `MultiUser.nsh` either** — its `Highest` execution
+  level also triggers UAC at launch (before the choice page), and `Standard`
+  never elevates at all. Neither matches "elevate only if the user picks
+  per-machine". We hand-roll the elevation dance in ~50 lines using
+  `nsDialogs` + `ExecShell "runas"`.
 
 ## Using Qt Creator
 

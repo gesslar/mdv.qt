@@ -1,0 +1,38 @@
+# Windows packaging targets — pulled in by the top-level Makefile when
+# building on Windows. Produces an NSIS installer via a custom CMake target
+# (NOT CPack — see cmake/Packaging.cmake for why), driving makensis against
+# cmake/mdv.nsi.in.
+#
+#     make exe    → dist/mdv-<version>-win64.exe
+#     make dist   → same
+#
+# The installer offers the user a choice between per-user (no admin, install
+# to %LOCALAPPDATA%\Programs\mdv) and per-machine (admin, Program Files\mdv)
+# via NSIS MultiUser.nsh. Shortcuts and registry hive follow that choice.
+#
+# Prereqs:
+#   - NSIS 3.x (makensis.exe) — `choco install nsis` or install from
+#     https://nsis.sourceforge.io/ and ensure NSIS\Bin is on PATH. CMake's
+#     find_program() also checks the default Program Files locations.
+#   - Perl, needed by KSyntaxHighlighting at configure time. Git for Windows
+#     bundles one at <git-prefix>/usr/bin/perl.exe and CMakeLists auto-detects
+#     it; otherwise `choco install strawberryperl`.
+# See DEVELOPMENT.md for the full Windows setup.
+#
+# DIST_DIR (the output directory) comes from the top-level Makefile, alongside
+# DEV_DIR / RELEASE_DIR, so `make distclean` there can sweep it too.
+
+.PHONY: dist exe
+
+# Every Windows package format. Single artifact today; keeps the verb parallel
+# to `make dist` on Linux (which fans out to deb + rpm).
+dist: exe
+
+# Re-configure the release tree with MDV_PACKAGE_OUTPUT_DIR pointing at our
+# DIST_DIR (otherwise the artifact lands inside the build dir), then drive
+# the package_nsis custom target. The target stages the install tree via
+# `cmake --install` and runs makensis on the generated mdv.nsi.
+exe: release
+	cmake -S . -B $(RELEASE_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release \
+	    -DMDV_PACKAGE_OUTPUT_DIR=$(CURDIR)/$(DIST_DIR) $(PREFIX_FLAG)
+	cmake --build $(RELEASE_DIR) --target package_nsis
