@@ -1,11 +1,14 @@
 #include "DocumentView.h"
 
+#include <algorithm>
+
 #include <QAbstractTextDocumentLayout>
 #include <QColor>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFileSystemWatcher>
 #include <QFont>
 #include <QMenu>
 #include <QMessageBox>
@@ -67,6 +70,15 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
     }
     m_pendingAnchor = -1;
   });
+
+  // Hot reload. fileChanged fires on external writes; the reload timer
+  // debounces the burst a save produces before we re-render in place.
+  m_watcher = new QFileSystemWatcher(this);
+  connect(m_watcher, &QFileSystemWatcher::fileChanged, this,
+          &DocumentView::onFileChanged);
+  m_reloadTimer = new QTimer(this);
+  m_reloadTimer->setSingleShot(true);
+  connect(m_reloadTimer, &QTimer::timeout, this, &DocumentView::reloadFromDisk);
 }
 
 bool DocumentView::loadFile(const QString &path) {
@@ -101,6 +113,7 @@ bool DocumentView::loadFile(const QString &path) {
   m_filePath = info.canonicalFilePath();
   if (m_filePath.isEmpty()) m_filePath = info.absoluteFilePath();
 
+  armWatch();
   emit fileLoaded(m_filePath);
   return true;
 }
@@ -277,4 +290,90 @@ void DocumentView::setPinned(bool on) {
   if (m_pinned == on) return;
   m_pinned = on;
   emit pinnedChanged(on);
+}
+
+void DocumentView::setWatching(bool on) {
+  if (m_watching == on) return;
+  m_watching = on;
+  armWatch();
+}
+
+void DocumentView::armWatch() {
+  if (!m_watcher) return;
+  // Clear the current path, then re-add if we should be watching. (removePaths
+  // on an empty list is a no-op; an atomic save drops the path, so re-arming
+  // after each reload re-points us at the new inode.)
+  const QStringList watched = m_watcher->files();
+  if (!watched.isEmpty()) m_watcher->removePaths(watched);
+  if (m_watching && !m_filePath.isEmpty() && QFileInfo::exists(m_filePath))
+    m_watcher->addPath(m_filePath);
+}
+
+void DocumentView::onFileChanged(const QString &) {
+  if (!m_watching) return;
+  // Coalesce the burst of events a save produces; reload once it settles.
+  m_reloadTimer->start(120);
+}
+
+void DocumentView::reloadFromDisk() {
+  if (m_filePath.isEmpty()) return;
+
+  QFile file(m_filePath);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    // Mid-save the file can be briefly unreadable (atomic rename in flight) —
+    // bail quietly and re-arm; another change event will bring us back.
+    armWatch();
+    return;
+  }
+  QTextStream in(&file);
+  in.setEncoding(QStringConverter::Utf8);
+  const QString html = mdv::markdownToHtml(in.readAll());
+
+  // Capture the view state before swapping. The anchor is a character offset
+  // into the current rendered text; oldText is that same text (so the diff in
+  // remapAnchor lives in the anchor's coordinate space). The font — including
+  // any Ctrl+wheel zoom — is left untouched, so a content-only setHtml()
+  // preserves the zoom for free.
+  const int anchor = topAnchor();
+  const QString oldText = m_browser->document()->toPlainText();
+
+  m_browser->setHtml(html);
+
+  const QString newText = m_browser->document()->toPlainText();
+  scrollToAnchor(remapAnchor(anchor, oldText, newText));
+
+  // Re-point the watcher (an atomic save dropped the path).
+  armWatch();
+}
+
+int DocumentView::remapAnchor(int pos, const QString &oldText,
+                              const QString &newText) const {
+  const int oldLen = oldText.size();
+  const int newLen = newText.size();
+
+  // Common prefix and (non-overlapping) common suffix bound the changed region
+  // to [prefix, oldLen - suffix) in the old text's coordinates.
+  int prefix = 0;
+  const int maxPrefix = std::min(oldLen, newLen);
+  while (prefix < maxPrefix && oldText[prefix] == newText[prefix]) ++prefix;
+
+  int suffix = 0;
+  const int maxSuffix = std::min(oldLen, newLen) - prefix;
+  while (suffix < maxSuffix &&
+         oldText[oldLen - 1 - suffix] == newText[newLen - 1 - suffix]) {
+    ++suffix;
+  }
+
+  const int changeStart = prefix;
+  const int changeEnd = oldLen - suffix;  // exclusive
+
+  int mapped;
+  if (pos <= changeStart) {
+    mapped = pos;  // edit was below the anchor — offset unchanged
+  } else if (pos >= changeEnd) {
+    mapped = pos + (newLen - oldLen);  // edit was above — shift by net delta
+  } else {
+    mapped = changeStart;  // anchor sat inside the edit — best-effort positional
+  }
+  return std::clamp(mapped, 0, newLen);
 }
