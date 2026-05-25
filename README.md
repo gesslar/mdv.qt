@@ -24,12 +24,16 @@ A fast, minimal desktop Markdown viewer built with Qt 6 and C++.
 
 ## Building
 
-See **[DEVELOPMENT.md](DEVELOPMENT.md)** for prerequisites (Qt 6,
-KSyntaxHighlighting, CMake, Ninja). Then:
+See **[DEVELOPMENT.md](DEVELOPMENT.md)** for prerequisites (Qt 6, CMake,
+Ninja; KSyntaxHighlighting on Linux/macOS — fetched in-tree on Windows).
+Then:
 
 ```bash
 make            # dev build → build/mdv
 make run        # build, then launch
+make dist       # OS-native installer → dist/
+                #   Linux:   .deb + .rpm via CPack
+                #   Windows: NSIS .exe with per-user / per-machine choice
 ```
 
 ## Usage
