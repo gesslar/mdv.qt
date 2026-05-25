@@ -60,3 +60,4 @@ It builds on these components, under their own licenses:
 | [Qt 6](https://www.qt.io/) (Widgets) | LGPL-3.0 |
 | [md4c](https://github.com/mity/md4c) | MIT |
 | [KSyntaxHighlighting](https://invent.kde.org/frameworks/syntax-highlighting) | MIT |
+| [Codicons](https://github.com/microsoft/vscode-codicons) (bundled tab icons) | MIT |
