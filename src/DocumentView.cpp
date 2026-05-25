@@ -21,7 +21,7 @@
 #include <QVBoxLayout>
 
 #include "ContentTheme.h"
-#include "EditorPane.h"
+#include "EditorGroup.h"
 #include "Markdown.h"
 
 DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
@@ -37,7 +37,7 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
           &DocumentView::onAnchorClicked);
   m_browser->setContextMenuPolicy(Qt::CustomContextMenu);
   // Disable QTextBrowser's own drop handling so file URL drops bubble
-  // up to the EditorPane (which interprets them as "open this file")
+  // up to the EditorGroup (which interprets them as "open this file")
   // instead of being inserted as text into the rendered document.
   m_browser->setAcceptDrops(false);
   // Apply the active content theme's stylesheet. setDefaultStyleSheet
@@ -252,16 +252,16 @@ void DocumentView::onContextMenuRequested(const QPoint &pos) {
   // commands if pos is over a link).
   QMenu *menu = m_browser->createStandardContextMenu(pos);
 
-  // Walk up to find our containing pane and let it append the same
+  // Walk up to find our containing group and let it append the same
   // Pin/Watch/Split/Close items the tab context menu shows.
-  EditorPane *pane = nullptr;
+  EditorGroup *group = nullptr;
   for (QWidget *w = parentWidget(); w; w = w->parentWidget()) {
-    pane = qobject_cast<EditorPane *>(w);
-    if (pane) break;
+    group = qobject_cast<EditorGroup *>(w);
+    if (group) break;
   }
-  if (pane) {
+  if (group) {
     menu->addSeparator();
-    pane->populateTabContextMenu(menu, this);
+    group->populateTabContextMenu(menu, this);
   }
 
   menu->exec(m_browser->mapToGlobal(pos));

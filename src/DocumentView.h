@@ -39,10 +39,10 @@ public:
 
   // Document-relative scroll anchor: the character offset at the top of
   // the visible viewport. Stable across viewport-size changes (a wider
-  // or narrower pane reflows the text, so raw scrollbar values aren't
+  // or narrower group reflows the text, so raw scrollbar values aren't
   // meaningful — but the position of "this character" in the document
-  // is). Used by "Split" actions to land the new pane at the same place
-  // in the document as the source, regardless of pane width.
+  // is). Used by "Split" actions to land the new group at the same place
+  // in the document as the source, regardless of group width.
   int topAnchor() const;
 
   // Scroll so the given character position is at the top of the viewport.
@@ -51,7 +51,7 @@ public:
 
   // Tab metadata — toggled via the tab context menu.
   bool isPinned() const { return m_pinned; }
-  // Emits pinnedChanged() so the owning pane can mark the tab with its pin
+  // Emits pinnedChanged() so the owning group can mark the tab with its pin
   // sash and keep pinned tabs clustered. No-op if the state is unchanged.
   void setPinned(bool on);
 
@@ -61,7 +61,7 @@ public:
 signals:
   void fileLoaded(const QString &canonicalPath);
 
-  // The pinned state changed — the owning EditorPane repaints the tab's pin
+  // The pinned state changed — the owning EditorGroup repaints the tab's pin
   // sash and (next step) repositions it within the pinned cluster.
   void pinnedChanged(bool pinned);
 

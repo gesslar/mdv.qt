@@ -11,7 +11,7 @@
 #include <QPixmap>
 
 #include "DocumentView.h"
-#include "EditorPane.h"
+#include "EditorGroup.h"
 
 TabBar::TabBar(QWidget *parent) : QTabBar(parent) { setAcceptDrops(true); }
 
@@ -25,9 +25,9 @@ bool TabBar::draggedTabIsPinned(const QMimeData *mime) {
   qint32 idx = -1;
   ds >> ptr >> idx;
   if (ds.status() != QDataStream::Ok) return false;
-  auto *pane = reinterpret_cast<EditorPane *>(ptr);
-  if (!pane) return false;
-  auto *doc = pane->documentAt(idx);
+  auto *group = reinterpret_cast<EditorGroup *>(ptr);
+  if (!group) return false;
+  auto *doc = group->documentAt(idx);
   return doc && doc->isPinned();
 }
 
@@ -36,10 +36,10 @@ void TabBar::mousePressEvent(QMouseEvent *e) {
     m_pressIndex = tabAt(e->pos());
     m_pressPos = e->pos();
     // Capture the pressed tab's page widget (identity) — within-bar reordering
-    // can shift its index before a cross-pane drag begins, so we recompute the
+    // can shift its index before a cross-group drag begins, so we recompute the
     // live index from this rather than trusting the press-time index.
-    auto *pane = qobject_cast<EditorPane *>(parentWidget());
-    m_pressTab = pane ? pane->widget(m_pressIndex) : nullptr;
+    auto *group = qobject_cast<EditorGroup *>(parentWidget());
+    m_pressTab = group ? group->widget(m_pressIndex) : nullptr;
   }
   QTabBar::mousePressEvent(e);
 }
@@ -68,10 +68,10 @@ void TabBar::mouseMoveEvent(QMouseEvent *e) {
 
   // Recompute the live index from the captured tab — QTabBar may have reordered
   // it within the bar since the press, leaving m_pressIndex stale.
-  auto *pane = qobject_cast<EditorPane *>(parentWidget());
-  const int idx = pane ? pane->indexOf(m_pressTab) : -1;
+  auto *group = qobject_cast<EditorGroup *>(parentWidget());
+  const int idx = group ? group->indexOf(m_pressTab) : -1;
   if (idx < 0) return;
-  startCrossPaneDrag(idx);
+  startCrossGroupDrag(idx);
 }
 
 void TabBar::mouseReleaseEvent(QMouseEvent *e) {
@@ -104,10 +104,10 @@ void TabBar::dropEvent(QDropEvent *e) {
   ds >> ptr >> idx;
   if (ds.status() != QDataStream::Ok) return;
 
-  auto *source = reinterpret_cast<EditorPane *>(ptr);
-  auto *target = qobject_cast<EditorPane *>(parentWidget());
+  auto *source = reinterpret_cast<EditorGroup *>(ptr);
+  auto *target = qobject_cast<EditorGroup *>(parentWidget());
   if (!source || !target) return;
-  if (source == target) return;  // same-pane tab-bar drop is a no-op
+  if (source == target) return;  // same-group tab-bar drop is a no-op
 
   DocumentView *doc = source->takeDocument(idx);
   if (!doc) return;
@@ -116,14 +116,14 @@ void TabBar::dropEvent(QDropEvent *e) {
   e->acceptProposedAction();
 }
 
-void TabBar::startCrossPaneDrag(int tabIndex) {
-  auto *pane = qobject_cast<EditorPane *>(parentWidget());
-  if (!pane) return;
+void TabBar::startCrossGroupDrag(int tabIndex) {
+  auto *group = qobject_cast<EditorGroup *>(parentWidget());
+  if (!group) return;
 
   QByteArray payload;
   {
     QDataStream ds(&payload, QIODevice::WriteOnly);
-    ds << qintptr(pane) << qint32(tabIndex);
+    ds << qintptr(group) << qint32(tabIndex);
   }
 
   auto *mime = new QMimeData;

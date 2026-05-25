@@ -7,7 +7,7 @@
 #include <QVBoxLayout>
 
 #include "DocumentView.h"
-#include "EditorPane.h"
+#include "EditorGroup.h"
 
 namespace {
 constexpr int kClosedStackLimit = 50;
@@ -17,15 +17,15 @@ EditorArea::EditorArea(QWidget *parent) : QWidget(parent) {
   m_layout = new QVBoxLayout(this);
   m_layout->setContentsMargins(0, 0, 0, 0);
 
-  // The per-pane focusInEvent only fires when the QTabWidget itself is
+  // The per-group focusInEvent only fires when the QTabWidget itself is
   // focused. Click into a child QTextBrowser and focus lands there
-  // instead, leaving the active pane stale. Listening to the global
-  // focus signal lets us find whichever pane actually contains the
+  // instead, leaving the active group stale. Listening to the global
+  // focus signal lets us find whichever group actually contains the
   // newly focused widget.
   connect(qApp, &QApplication::focusChanged, this,
           &EditorArea::onFocusChanged);
 
-  auto *initial = makePane();
+  auto *initial = makeGroup();
   setRoot(initial);
   setActive(initial);
 }
@@ -51,33 +51,33 @@ DocumentView *EditorArea::openFile(const QString &path) {
 }
 
 void EditorArea::splitActive(SplitSide side) {
-  EditorPane *newPane = splitInternal(m_active, side);
-  if (newPane) {
-    setActive(newPane);
-    newPane->setFocus();
+  EditorGroup *newGroup = splitInternal(m_active, side);
+  if (newGroup) {
+    setActive(newGroup);
+    newGroup->setFocus();
   }
 }
 
-void EditorArea::splitWith(EditorPane *target, SplitSide side,
+void EditorArea::splitWith(EditorGroup *target, SplitSide side,
                            DocumentView *doc) {
-  EditorPane *newPane = splitInternal(target, side);
-  if (!newPane) {
+  EditorGroup *newGroup = splitInternal(target, side);
+  if (!newGroup) {
     // Fall back to adding to the target so we don't drop the doc on the
     // floor.
     if (doc) target->addDocument(doc);
     return;
   }
-  if (doc) newPane->addDocument(doc);
-  setActive(newPane);
-  newPane->setFocus();
+  if (doc) newGroup->addDocument(doc);
+  setActive(newGroup);
+  newGroup->setFocus();
 }
 
-EditorPane *EditorArea::splitInternal(EditorPane *target, SplitSide side) {
+EditorGroup *EditorArea::splitInternal(EditorGroup *target, SplitSide side) {
   if (!target) return nullptr;
 
   const Qt::Orientation wanted =
       (side == Left || side == Right) ? Qt::Horizontal : Qt::Vertical;
-  const bool newPaneAfter = (side == Right || side == Bottom);
+  const bool newGroupAfter = (side == Right || side == Bottom);
 
   // Capture target's current dimension *before* any reparenting — the
   // new splitter won't have a valid width/height until Qt lays it out
@@ -87,22 +87,22 @@ EditorPane *EditorArea::splitInternal(EditorPane *target, SplitSide side) {
   const int half = targetDim / 2;
   const int otherHalf = targetDim - half;
 
-  auto *newPane = makePane();
+  auto *newGroup = makeGroup();
 
   // Same-orientation parent splitter → insert in place, no extra nesting.
-  // Split target's slice between target and the new pane so both end up
+  // Split target's slice between target and the new group so both end up
   // half the size target used to occupy.
   if (auto *parentSplit = qobject_cast<QSplitter *>(target->parentWidget());
       parentSplit && parentSplit->orientation() == wanted) {
     const int idx = parentSplit->indexOf(target);
     QList<int> sizes = parentSplit->sizes();
 
-    parentSplit->insertWidget(newPaneAfter ? idx + 1 : idx, newPane);
+    parentSplit->insertWidget(newGroupAfter ? idx + 1 : idx, newGroup);
 
     sizes[idx] = otherHalf;  // target's new size
-    sizes.insert(newPaneAfter ? idx + 1 : idx, half);  // new pane's size
+    sizes.insert(newGroupAfter ? idx + 1 : idx, half);  // new group's size
     parentSplit->setSizes(sizes);
-    return newPane;
+    return newGroup;
   }
 
   // Wrap target in a new splitter of the wanted orientation. The new
@@ -112,11 +112,11 @@ EditorPane *EditorArea::splitInternal(EditorPane *target, SplitSide side) {
   split->setChildrenCollapsible(false);
 
   auto installChildren = [&]() {
-    if (newPaneAfter) {
+    if (newGroupAfter) {
       split->addWidget(target);
-      split->addWidget(newPane);
+      split->addWidget(newGroup);
     } else {
-      split->addWidget(newPane);
+      split->addWidget(newGroup);
       split->addWidget(target);
     }
   };
@@ -135,40 +135,40 @@ EditorPane *EditorArea::splitInternal(EditorPane *target, SplitSide side) {
   }
 
   // Sizes are positional in the splitter's child list; both arrangements
-  // (target@0 + newPane@1, or newPane@0 + target@1) need half/half so
+  // (target@0 + newGroup@1, or newGroup@0 + target@1) need half/half so
   // the literal pair {half, otherHalf} is correct either way.
   split->setSizes({half, otherHalf});
 
-  return newPane;
+  return newGroup;
 }
 
 DocumentView *EditorArea::currentDocument() const {
   return m_active ? m_active->currentDocument() : nullptr;
 }
 
-void EditorArea::onPaneActivated() {
-  auto *pane = qobject_cast<EditorPane *>(sender());
-  if (pane) setActive(pane);
+void EditorArea::onGroupActivated() {
+  auto *group = qobject_cast<EditorGroup *>(sender());
+  if (group) setActive(group);
 }
 
-void EditorArea::onPaneEmpty() {
-  auto *pane = qobject_cast<EditorPane *>(sender());
-  if (!pane) return;
+void EditorArea::onGroupEmpty() {
+  auto *group = qobject_cast<EditorGroup *>(sender());
+  if (!group) return;
 
-  // The last surviving pane is preserved as an empty placeholder; we
-  // never end up with zero panes in the area.
-  const auto panes = allPanes();
-  if (panes.size() <= 1) return;
+  // The last surviving group is preserved as an empty placeholder; we
+  // never end up with zero groups in the area.
+  const auto groups = allGroups();
+  if (groups.size() <= 1) return;
 
-  auto *parentSplit = qobject_cast<QSplitter *>(pane->parentWidget());
+  auto *parentSplit = qobject_cast<QSplitter *>(group->parentWidget());
   if (!parentSplit) {
-    // pane is the root yet there's another pane somewhere? Shouldn't
+    // group is the root yet there's another group somewhere? Shouldn't
     // happen given our tree shape — bail safely.
     return;
   }
 
-  pane->setParent(nullptr);
-  pane->deleteLater();
+  group->setParent(nullptr);
+  group->deleteLater();
 
   // If the splitter now has only one child, collapse it into its parent.
   if (parentSplit->count() == 1) {
@@ -178,16 +178,16 @@ void EditorArea::onPaneEmpty() {
     parentSplit->deleteLater();
   }
 
-  // Promote some surviving pane to active so File→Open has a target.
-  const auto remaining = allPanes();
+  // Promote some surviving group to active so File→Open has a target.
+  const auto remaining = allGroups();
   if (!remaining.isEmpty()) {
     setActive(remaining.first());
     remaining.first()->setFocus();
   }
 }
 
-void EditorArea::onPaneCurrentDocumentChanged(DocumentView *doc) {
-  // Only the active pane's current-doc changes surface upward.
+void EditorArea::onGroupCurrentDocumentChanged(DocumentView *doc) {
+  // Only the active group's current-doc changes surface upward.
   if (sender() == m_active) emit currentDocumentChanged(doc);
 }
 
@@ -195,8 +195,8 @@ void EditorArea::onFocusChanged(QWidget *, QWidget *now) {
   if (!now || !isAncestorOf(now)) return;
 
   for (QWidget *w = now; w && w != this; w = w->parentWidget()) {
-    if (auto *pane = qobject_cast<EditorPane *>(w)) {
-      setActive(pane);
+    if (auto *group = qobject_cast<EditorGroup *>(w)) {
+      setActive(group);
       return;
     }
   }
@@ -211,22 +211,22 @@ void EditorArea::setRoot(QWidget *w) {
   m_layout->addWidget(w);
 }
 
-void EditorArea::setActive(EditorPane *pane) {
-  if (m_active == pane) return;
-  m_active = pane;
-  emit currentDocumentChanged(pane ? pane->currentDocument() : nullptr);
+void EditorArea::setActive(EditorGroup *group) {
+  if (m_active == group) return;
+  m_active = group;
+  emit currentDocumentChanged(group ? group->currentDocument() : nullptr);
 }
 
-void EditorArea::registerPane(EditorPane *pane) {
-  connect(pane, &EditorPane::activated, this, &EditorArea::onPaneActivated);
-  connect(pane, &EditorPane::becameEmpty, this, &EditorArea::onPaneEmpty);
-  connect(pane, &EditorPane::currentDocumentChanged, this,
-          &EditorArea::onPaneCurrentDocumentChanged);
-  connect(pane, &EditorPane::tabClosed, this, &EditorArea::onTabClosed);
-  connect(pane, &EditorPane::filesDropped, this, &EditorArea::filesDropped);
-  connect(pane, &EditorPane::openFileRequested, this,
+void EditorArea::registerGroup(EditorGroup *group) {
+  connect(group, &EditorGroup::activated, this, &EditorArea::onGroupActivated);
+  connect(group, &EditorGroup::becameEmpty, this, &EditorArea::onGroupEmpty);
+  connect(group, &EditorGroup::currentDocumentChanged, this,
+          &EditorArea::onGroupCurrentDocumentChanged);
+  connect(group, &EditorGroup::tabClosed, this, &EditorArea::onTabClosed);
+  connect(group, &EditorGroup::filesDropped, this, &EditorArea::filesDropped);
+  connect(group, &EditorGroup::openFileRequested, this,
           &EditorArea::openFileRequested);
-  connect(pane, &EditorPane::pinStateChanged, this,
+  connect(group, &EditorGroup::pinStateChanged, this,
           &EditorArea::pinStateChanged);
 }
 
@@ -253,10 +253,10 @@ void EditorArea::closeAllInActive() {
 }
 
 void EditorArea::closeAllEverywhere() {
-  // Snapshot the panes before iterating — pane destruction during the
-  // loop would otherwise invalidate live iteration over allPanes().
-  const auto panes = allPanes();
-  for (EditorPane *pane : panes) pane->closeAll();
+  // Snapshot the groups before iterating — group destruction during the
+  // loop would otherwise invalidate live iteration over allGroups().
+  const auto groups = allGroups();
+  for (EditorGroup *group : groups) group->closeAll();
 }
 
 void EditorArea::replaceInParent(QWidget *child, QWidget *replacement) {
@@ -270,20 +270,20 @@ void EditorArea::replaceInParent(QWidget *child, QWidget *replacement) {
   parentSplit->replaceWidget(idx, replacement);
 }
 
-EditorPane *EditorArea::makePane() {
-  auto *pane = new EditorPane(this);
-  registerPane(pane);
-  return pane;
+EditorGroup *EditorArea::makeGroup() {
+  auto *group = new EditorGroup(this);
+  registerGroup(group);
+  return group;
 }
 
-QList<EditorPane *> EditorArea::allPanes() const {
-  return findChildren<EditorPane *>();
+QList<EditorGroup *> EditorArea::allGroups() const {
+  return findChildren<EditorGroup *>();
 }
 
 bool EditorArea::hasUnpinnedTabs() const {
-  const auto panes = allPanes();
-  for (EditorPane *pane : panes) {
-    if (pane->hasUnpinnedTabs()) return true;
+  const auto groups = allGroups();
+  for (EditorGroup *group : groups) {
+    if (group->hasUnpinnedTabs()) return true;
   }
   return false;
 }

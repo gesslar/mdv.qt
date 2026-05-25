@@ -16,7 +16,7 @@
 #include "ContentTheme.h"
 #include "DocumentView.h"
 #include "EditorArea.h"
-#include "EditorPane.h"
+#include "EditorGroup.h"
 #include "PreferencesDialog.h"
 
 namespace {
@@ -43,7 +43,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   // Catch-all for drops that miss the EditorArea (menubar, status bar,
   // any chrome). Drops anywhere on the window get routed to the
-  // currently active pane via openFile().
+  // currently active group via openFile().
   setAcceptDrops(true);
 
   auto *fileMenu = menuBar()->addMenu(tr("&File"));
@@ -208,9 +208,9 @@ DocumentView *MainWindow::openFile(const QString &path) {
 }
 
 void MainWindow::onCloseCurrentTab() {
-  EditorPane *pane = m_area->activePane();
-  if (!pane || pane->count() == 0) return;
-  pane->closeTab(pane->currentIndex());
+  EditorGroup *group = m_area->activeGroup();
+  if (!group || group->count() == 0) return;
+  group->closeTab(group->currentIndex());
 }
 
 void MainWindow::onCloseAllInActive() { m_area->closeAllInActive(); }
@@ -220,7 +220,7 @@ void MainWindow::onCloseAllEverywhere() { m_area->closeAllEverywhere(); }
 void MainWindow::onReopenClosed() { m_area->reopenLastClosed(); }
 
 void MainWindow::updateFileMenuState() {
-  EditorPane *active = m_area->activePane();
+  EditorGroup *active = m_area->activeGroup();
 
   // Close Tab closes the current tab explicitly — works even if it's pinned,
   // so it only needs a tab present.
@@ -268,19 +268,19 @@ void MainWindow::onSplitDown() {
 }
 
 void MainWindow::onNextTab() {
-  if (auto *pane = m_area->activePane()) pane->nextTab();
+  if (auto *group = m_area->activeGroup()) group->nextTab();
 }
 
 void MainWindow::onPreviousTab() {
-  if (auto *pane = m_area->activePane()) pane->previousTab();
+  if (auto *group = m_area->activeGroup()) group->previousTab();
 }
 
 void MainWindow::onMoveTabRight() {
-  if (auto *pane = m_area->activePane()) pane->moveCurrentTabRight();
+  if (auto *group = m_area->activeGroup()) group->moveCurrentTabRight();
 }
 
 void MainWindow::onMoveTabLeft() {
-  if (auto *pane = m_area->activePane()) pane->moveCurrentTabLeft();
+  if (auto *group = m_area->activeGroup()) group->moveCurrentTabLeft();
 }
 
 void MainWindow::onCurrentDocumentChanged(DocumentView *doc) {

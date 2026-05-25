@@ -135,9 +135,9 @@ Then in Qt Creator: **Edit → Preferences → Text Editor → Fonts & Colors �
 src/
   main.cpp                  # entry point, QApplication, CLI args
   MainWindow.{h,cpp}        # top-level window, menus, shortcuts
-  EditorArea.{h,cpp}        # splitter tree, active-pane tracking, file routing
-  EditorPane.{h,cpp}        # one tabbed editor group (QTabWidget subclass)
-  TabBar.{h,cpp}            # QTabBar with cross-pane drag support
+  EditorArea.{h,cpp}        # splitter tree, active-group tracking, file routing
+  EditorGroup.{h,cpp}       # one tabbed editor group (QTabWidget subclass)
+  TabBar.{h,cpp}            # QTabBar with cross-group drag support
   DocumentView.{h,cpp}      # one tab — owns a QTextBrowser and a file path
   Markdown.{h,cpp}          # md4c → HTML, with code-block post-processing
   Highlighter.{h,cpp}       # KSyntaxHighlighting → themed inline-styled spans

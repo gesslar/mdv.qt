@@ -12,8 +12,8 @@ A fast, minimal desktop Markdown viewer built with Qt 6 and C++.
 - **Content themes** — swappable color/spacing themes for the rendered
   document; three dark themes bundled, and you can author your own
   (see [THEMING.md](THEMING.md))
-- **Tabs and splits** — open documents in tabs, split a pane right or down,
-  drag tabs between panes
+- **Tabs and splits** — open documents in tabs, split a group right or down,
+  drag tabs between groups
 - **Drag-and-drop** — drop markdown files onto the window to open them
 - **Recent files** — with reopen-last-closed and reopen-all
 - **Familiar shortcuts** — `Ctrl+W` close, `Ctrl+Shift+T` reopen, `Ctrl+\`
