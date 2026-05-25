@@ -6,8 +6,9 @@
     "paragraph":   "1em",
     "heading":     "1.5em",
     "list.indent": "1.5em",
-    "code.pad":    "0.75em 1em",
-    "table.cell":  "0.5em 1em"
+    "table.cell":  "1em",
+    "block.pad":   "1em",
+    "block.indent": "1em"
   },
 
   "colors": {

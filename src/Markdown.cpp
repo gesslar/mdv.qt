@@ -58,21 +58,73 @@ QString highlightCodeBlocks(const QString &html) {
     // whitespace-delimited token.
     const QString lang =
         m.captured(1).split(QLatin1Char(' '), Qt::SkipEmptyParts).value(0);
+    // Wrap each block in a single-cell table. Qt's QTextDocument only renders
+    // the CSS box model (border + padding) on table cells, never on block
+    // elements like <pre>, so the cell is what carries the frame and the inset.
+    // It also fills the background as one rectangle instead of the per-line
+    // fill a <pre> background does — which is what caused the seam artifacts.
     if (lang.isEmpty()) {
       // Unlabeled / unknown blocks aren't highlighted; re-emit the already-
       // escaped content with the trailing newline trimmed.
-      out.append(QStringLiteral("<pre><code>"));
+      out.append(QStringLiteral(
+          "<table class=\"codeblock\" width=\"100%\"><tr><td><pre><code>"));
       out.append(inner);
-      out.append(QStringLiteral("</code></pre>"));
+      out.append(QStringLiteral("</code></pre></td></tr></table>"));
       continue;
     }
 
-    out.append(QStringLiteral("<pre><code class=\"language-%1\">")
+    out.append(QStringLiteral("<table class=\"codeblock\" width=\"100%\">"
+                              "<tr><td><pre><code class=\"language-%1\">")
                    .arg(lang.toHtmlEscaped()));
     out.append(highlightCode(unescapeHtml(inner), lang));
-    out.append(QStringLiteral("</code></pre>"));
+    out.append(QStringLiteral("</code></pre></td></tr></table>"));
   }
   out.append(QStringView(html).sliced(last));
+  return out;
+}
+
+// Wrap each top-level <blockquote> in a single-cell table, mirroring the code
+// block treatment: Qt only renders the CSS box model (border, padding) on table
+// cells, never on block elements, so the cell is what carries the blockquote's
+// border and inset. Only the outermost blockquote is wrapped — nested ones ride
+// along inside the cell — and we find its matching close by tracking tag depth,
+// which a regex can't do for arbitrary nesting.
+QString wrapBlockquotes(const QString &html) {
+  static const QString open = QStringLiteral("<blockquote>");
+  static const QString close = QStringLiteral("</blockquote>");
+
+  QString out;
+  out.reserve(html.size() + 64);
+
+  int depth = 0;
+  qsizetype copied = 0;  // everything before this index is already in `out`
+  qsizetype pos = 0;
+  while (pos < html.size()) {
+    const qsizetype nextOpen = html.indexOf(open, pos);
+    const qsizetype nextClose = html.indexOf(close, pos);
+    if (nextClose < 0) break;  // no more well-formed blockquotes
+
+    if (nextOpen >= 0 && nextOpen < nextClose) {
+      if (depth == 0) {
+        // Flush the prose before this blockquote, then open the wrapper. The
+        // blockquote's own markup is emitted when its matching close is found.
+        out.append(QStringView(html).sliced(copied, nextOpen - copied));
+        out.append(QStringLiteral("<table class=\"blockquote\"><tr><td>"));
+        copied = nextOpen;
+      }
+      ++depth;
+      pos = nextOpen + open.size();
+    } else {
+      if (depth > 0 && --depth == 0) {
+        const qsizetype end = nextClose + close.size();
+        out.append(QStringView(html).sliced(copied, end - copied));
+        out.append(QStringLiteral("</td></tr></table>"));
+        copied = end;
+      }
+      pos = nextClose + close.size();
+    }
+  }
+  out.append(QStringView(html).sliced(copied));
   return out;
 }
 
@@ -104,7 +156,10 @@ QString markdownToHtml(const QString &markdown) {
     return QStringLiteral("<pre>%1</pre>").arg(markdown.toHtmlEscaped());
   }
 
-  return highlightCodeBlocks(QString::fromUtf8(html));
+  // Blockquotes are wrapped first, on the clean md4c output where <blockquote>
+  // only ever appears as a real tag; code-block highlighting runs after and
+  // still finds any <pre><code> nested inside a wrapped quote.
+  return highlightCodeBlocks(wrapBlockquotes(QString::fromUtf8(html)));
 }
 
 }  // namespace mdv
