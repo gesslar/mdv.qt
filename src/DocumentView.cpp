@@ -295,6 +295,7 @@ void DocumentView::setPinned(bool on) {
 void DocumentView::setWatching(bool on) {
   if (m_watching == on) return;
   m_watching = on;
+  if (!on) m_reloadTimer->stop();  // cancel any reload queued in the debounce
   armWatch();
 }
 
@@ -316,7 +317,10 @@ void DocumentView::onFileChanged(const QString &) {
 }
 
 void DocumentView::reloadFromDisk() {
-  if (m_filePath.isEmpty()) return;
+  // Guard m_watching too: a reload queued in the debounce window must not fire
+  // after watch was switched off (setWatching stops the timer, but this also
+  // covers any other path that could leave it pending).
+  if (!m_watching || m_filePath.isEmpty()) return;
 
   QFile file(m_filePath);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
