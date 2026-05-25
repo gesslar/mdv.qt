@@ -81,8 +81,19 @@ if(WIN32)
     #
     # The package_nsis target wires all three into a single cmake --build
     # invocation. Driven from Makefile.dist.windows.
+    # NSIS's installer registers its prefix at HKLM\SOFTWARE\NSIS (default
+    # value, e.g. "C:\Program Files (x86)\NSIS"). Reading the registry is
+    # both more robust than guessing Program Files and sidesteps the env-var-
+    # with-parens problem: $ENV{ProgramFiles(x86)} is a CMP0053-NEW syntax
+    # error (raw `(` and `)` aren't valid in a variable name), and writing
+    # $ENV{ProgramFiles\(x86\)} works but reads oddly enough that Greptile
+    # flagged it on PR #11. The plain $ENV{ProgramFiles} hint stays as a
+    # fallback in case NSIS was installed without writing the registry key.
     find_program(MAKENSIS_EXECUTABLE makensis
-        HINTS "$ENV{ProgramFiles\(x86\)}/NSIS" "$ENV{ProgramFiles}/NSIS"
+        HINTS
+            "[HKEY_LOCAL_MACHINE\\SOFTWARE\\NSIS]"
+            "[HKEY_LOCAL_MACHINE\\SOFTWARE\\WOW6432Node\\NSIS]"
+            "$ENV{ProgramFiles}/NSIS"
         PATH_SUFFIXES Bin)
     if(NOT MAKENSIS_EXECUTABLE)
         message(WARNING
