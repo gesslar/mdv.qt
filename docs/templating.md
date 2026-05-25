@@ -19,11 +19,31 @@ across three, each chosen to work around a QTextDocument/QTextBrowser quirk:
    on the browser. `body { background-color }` doesn't paint the widget viewport;
    QTextBrowser paints it from the palette.
 
-(Code-block token colors are a fourth, separate path — inline `<span style>`
-emitted by the KSyntaxHighlighting pass; see `src/Highlighter.cpp`.)
-
 All three are applied in `DocumentView`'s constructor and re-applied in
 `DocumentView::refresh()`, which Preferences calls after a theme/font change.
+
+## HTML post-processing
+
+The HTML md4c emits is rewritten once before `setHtml()` — `mdv::markdownToHtml`
+runs `wrapBlockquotes` then `highlightCodeBlocks` (`src/Markdown.cpp`):
+
+1. **Code blocks and blockquotes are wrapped in a single-cell table** —
+   `<table class="codeblock">` / `<table class="blockquote">`. This is the
+   constraint behind the template's whole shape: **Qt renders the CSS box model
+   (border + padding) only on table cells, never on block elements.** A `border`
+   or `padding` on `<pre>` or `<blockquote>` is silently dropped, so those frames
+   live on the wrapping cell instead (`table.codeblock td`, `table.blockquote
+   td`). Full width comes from the HTML `width="100%"` attribute — Qt ignores CSS
+   `width` on tables. Only the *outermost* blockquote is wrapped (found by
+   tracking tag depth, since a regex can't match balanced nesting); nested quotes
+   ride along inside the cell.
+2. **Code-block tokens become inline `<span style>`** — emitted by the
+   KSyntaxHighlighting pass and colored from the `syntax.*` palette
+   (`src/Highlighter.cpp`). That's why there are no `syntax.*` rules in the
+   template: those colors arrive inline, per token.
+
+So the template's `pre` and `blockquote` rules are deliberately thin (font,
+whitespace, text color); the visible frame is carried by the `…td` rules.
 
 ## The template
 
@@ -62,19 +82,25 @@ and named colors pass through untouched.
 
 ### `compositeOver` — block-background flattening
 
-QTextDocument fills a block's background **per text-line**, and adjacent line
-rectangles overlap by a sub-pixel — so a *translucent* block fill compounds at
-the seams into faint horizontal lines. To avoid that, the block-fill background
-keys are pre-composited onto the page color and resolve **opaque**:
+These three background keys all render on **table cells** now (code blocks and
+blockquotes are table-wrapped; `th` is already a cell), and a cell fills its
+background as one rectangle. `compositeOver` pre-flattens a translucent value to
+the exact opaque color it would show over `text.background`:
 
 - `code.background`
 - `blockquote.background`
 - `table.header.background`
 
-(see the `blockBackgrounds` set in `ContentTheme::resolveKey`). The composite is
-exact — it's the color the translucent tint would show over `text.background` —
-so authors keep writing natural translucent tints. Opaque inputs pass through
-unchanged.
+(see the `blockBackgrounds` set in `ContentTheme::resolveKey`.) Authors keep
+writing natural translucent tints; they resolve to the equivalent opaque color.
+Opaque inputs pass through unchanged.
+
+> Historically this flattening also dodged a seam artifact: before code blocks
+> and blockquotes were table-wrapped, their translucent fills were painted *per
+> text-line* on the `<pre>`/`<blockquote>` block, and the overlapping line
+> rectangles compounded into faint horizontal lines. The single-rectangle cell
+> fill avoids that structurally now; flattening is kept for the opaque guarantee
+> and gives an identical result.
 
 > Because `text.background` is the composite backdrop **and** is consumed raw via
 > `QPalette` in `DocumentView::applyDocumentPalette()`, it should stay opaque.
@@ -91,4 +117,5 @@ unchanged.
 
 - `resources/content/content.qss.template` — structural CSS + `@{…}` slots
 - `src/ContentTheme.{h,cpp}` — `resolveKey`, `coerceColor`, `compositeOver`, `qss()`
+- `src/Markdown.cpp` — md4c render + HTML post-processing (table wrapping, highlight pass)
 - `src/DocumentView.cpp` — applies the three channels (stylesheet / font / palette)

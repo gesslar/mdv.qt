@@ -36,8 +36,9 @@ What a theme does **not** control, by design:
     "paragraph":   "1em",
     "heading":     "1.5em",
     "list.indent": "1.5em",
-    "code.pad":    "0.75em 1em",
-    "table.cell":  "0.5em 1em"
+    "table.cell":  "1em",
+    "block.pad":   "1em",
+    "block.indent": "1em"
   },
 
   "colors": {
@@ -64,9 +65,8 @@ where transparency isn't meaningful.
 
 Block-fill backgrounds (`code.background`, `blockquote.background`,
 `table.header.background`) may use alpha, but they're flattened onto
-`text.background` at load and render **opaque** — the document engine can't
-paint a translucent block fill without faint per-line seams. You author the
-tint normally; it just resolves to the exact color it would show over the page.
+`text.background` at load and render **opaque**. You author the tint normally;
+it just resolves to the exact color it would show over the page.
 
 ## Spacing keys
 
@@ -75,8 +75,9 @@ tint normally; it just resolves to the exact color it would show over the page.
 | `paragraph`    | vertical margin of paragraphs, lists, quotes |
 | `heading`      | space above headings                         |
 | `list.indent`  | left indent of `ul` / `ol`                   |
-| `code.pad`     | padding inside fenced code blocks            |
 | `table.cell`   | padding of table cells                       |
+| `block.pad`    | padding inside fenced code blocks and blockquotes |
+| `block.indent` | horizontal recess of code blocks and blockquotes |
 
 ## Color keys
 
