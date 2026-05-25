@@ -1,17 +1,21 @@
 #include "EditorPane.h"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QDataStream>
 #include <QDragEnterEvent>
 #include <QDragLeaveEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QEnterEvent>
 #include <QFocusEvent>
+#include <QIcon>
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QStyle>
 #include <QTabBar>
 #include <QUrl>
 
@@ -42,6 +46,45 @@ protected:
     p.fillRect(rect(), fill);
     p.setPen(QPen(accent, 2));
     p.drawRect(rect().adjusted(1, 1, -1, -1));
+  }
+};
+
+// A frameless icon button for a tab's trailing slot. It paints only its icon
+// (plus a faint rounded hover), so none of QToolButton's style chrome leaks
+// through — used as the close (×) / pin (Unpin) affordance.
+class TabActionButton : public QAbstractButton {
+public:
+  explicit TabActionButton(QWidget *parent) : QAbstractButton(parent) {
+    setFocusPolicy(Qt::NoFocus);
+    setCursor(Qt::ArrowCursor);
+  }
+
+  QSize sizeHint() const override {
+    const int s = iconSize().width() + 6;
+    return QSize(s, s);
+  }
+
+protected:
+  void paintEvent(QPaintEvent *) override {
+    QPainter p(this);
+    if (underMouse()) {
+      p.setRenderHint(QPainter::Antialiasing, true);
+      p.setPen(Qt::NoPen);
+      p.setBrush(QColor(127, 127, 127, 64));
+      p.drawRoundedRect(rect(), 3, 3);
+    }
+    QRect iconRect(QPoint(0, 0), iconSize());
+    iconRect.moveCenter(rect().center());
+    icon().paint(&p, iconRect);
+  }
+
+  void enterEvent(QEnterEvent *e) override {
+    QAbstractButton::enterEvent(e);
+    update();
+  }
+  void leaveEvent(QEvent *e) override {
+    QAbstractButton::leaveEvent(e);
+    update();
   }
 };
 
@@ -88,6 +131,11 @@ EditorPane::EditorPane(QWidget *parent) : QTabWidget(parent) {
   connect(tabBar(), &QWidget::customContextMenuRequested, this,
           &EditorPane::onTabContextMenu);
 
+  // Keep pinned tabs clustered at the left even after a manual drag reorders
+  // them across the boundary.
+  connect(tabBar(), &QTabBar::tabMoved, this,
+          &EditorPane::enforcePinPartition);
+
   m_dropOverlay = new DropOverlay(this);
 }
 
@@ -97,8 +145,14 @@ int EditorPane::addDocument(DocumentView *doc) {
   connect(doc, &DocumentView::openFileRequested, this,
           &EditorPane::openFileRequested, Qt::UniqueConnection);
 
+  // Swap the tab's close/pin button when a contained doc's pin flips.
+  // UniqueConnection requires a PMF slot — it asserts on a lambda.
+  connect(doc, &DocumentView::pinnedChanged, this,
+          &EditorPane::onDocPinnedChanged, Qt::UniqueConnection);
+
   const int idx = addTab(doc, doc->displayName());
   setTabToolTip(idx, doc->filePath());
+  installTabButton(idx, doc);
   setCurrentIndex(idx);
   return idx;
 }
@@ -155,10 +209,45 @@ void EditorPane::onTabCloseRequested(int index) {
 void EditorPane::closeTab(int index) { onTabCloseRequested(index); }
 
 void EditorPane::closeAll() {
-  // Close from the end so indices stay valid as we walk; equivalent to
-  // closing index 0 repeatedly but avoids the small cost of QTabWidget
-  // recomputing current-tab on each close.
-  while (count() > 0) onTabCloseRequested(count() - 1);
+  // Bulk close — pinned tabs survive (only an explicit Close/X removes one).
+  // Walk from the end so each removal leaves lower indices valid; if any
+  // pinned tabs remain, the pane stays alive instead of collapsing.
+  for (int i = count() - 1; i >= 0; --i) {
+    auto *doc = documentAt(i);
+    if (doc && doc->isPinned()) continue;
+    onTabCloseRequested(i);
+  }
+}
+
+void EditorPane::closeOthers(int index) {
+  QWidget *keep = widget(index);
+  if (!keep) return;
+  // Walk from the end so each removal leaves lower indices valid; skip the
+  // kept tab (pointer-based, robust to shuffling) and any pinned tab.
+  for (int i = count() - 1; i >= 0; --i) {
+    if (widget(i) == keep) continue;
+    auto *doc = documentAt(i);
+    if (doc && doc->isPinned()) continue;
+    onTabCloseRequested(i);
+  }
+}
+
+void EditorPane::closeToRight(int index) {
+  // Close from the last tab down to just past `index`. Closing a higher index
+  // never shifts `index` or anything left of it. Pinned tabs survive.
+  for (int i = count() - 1; i > index; --i) {
+    auto *doc = documentAt(i);
+    if (doc && doc->isPinned()) continue;
+    onTabCloseRequested(i);
+  }
+}
+
+bool EditorPane::hasUnpinnedTabs() const {
+  for (int i = 0; i < count(); ++i) {
+    auto *doc = documentAt(i);
+    if (doc && !doc->isPinned()) return true;
+  }
+  return false;
 }
 
 void EditorPane::nextTab() {
@@ -190,6 +279,76 @@ void EditorPane::onCurrentChanged(int index) {
   emit currentDocumentChanged(documentAt(index));
 }
 
+void EditorPane::onDocPinnedChanged() {
+  // Swap the affected tab's button between the close and pin roles, then slide
+  // it into the pinned cluster (or back out to the unpinned region).
+  refreshTabButton(qobject_cast<DocumentView *>(sender()));
+  enforcePinPartition();
+}
+
+void EditorPane::enforcePinPartition() {
+  if (m_reordering) return;
+  m_reordering = true;
+  // Stable partition: walk left-to-right, pulling each pinned tab to the next
+  // pinned slot. Relative order within each zone is preserved, so a legal
+  // reorder sticks while a tab dragged across the boundary snaps back.
+  int target = 0;
+  for (int i = 0; i < count(); ++i) {
+    auto *doc = documentAt(i);
+    if (doc && doc->isPinned()) {
+      if (i != target) tabBar()->moveTab(i, target);
+      ++target;
+    }
+  }
+  m_reordering = false;
+}
+
+void EditorPane::installTabButton(int index, DocumentView *doc) {
+  const auto side = QTabBar::ButtonPosition(style()->styleHint(
+      QStyle::SH_TabBar_CloseButtonPosition, nullptr, tabBar()));
+  const int sz =
+      style()->pixelMetric(QStyle::PM_TabCloseIndicatorWidth, nullptr, tabBar());
+
+  auto *btn = new TabActionButton(tabBar());
+  btn->setIconSize(QSize(sz, sz));
+
+  // One handler serves both roles: a pinned tab's button unpins, otherwise it
+  // closes. refreshTabButton() sets the icon/tooltip to match the live role.
+  connect(btn, &QAbstractButton::clicked, this, [this, doc]() {
+    if (doc->isPinned()) {
+      doc->setPinned(false);
+    } else {
+      const int i = indexOf(doc);
+      if (i >= 0) closeTab(i);
+    }
+  });
+
+  tabBar()->setTabButton(index, side, btn);
+  refreshTabButton(doc);
+}
+
+void EditorPane::refreshTabButton(DocumentView *doc) {
+  if (!doc) return;
+  const int index = indexOf(doc);
+  if (index < 0) return;  // not a tab of this pane (e.g. dragged away)
+
+  const auto side = QTabBar::ButtonPosition(style()->styleHint(
+      QStyle::SH_TabBar_CloseButtonPosition, nullptr, tabBar()));
+  auto *btn = qobject_cast<QAbstractButton *>(tabBar()->tabButton(index, side));
+  if (!btn) return;
+
+  // Codicon glyphs (baked gray). Pinned tab → pin (click unpins); else close.
+  if (doc->isPinned()) {
+    static const QIcon pinIcon(QStringLiteral(":/icons/pin.svg"));
+    btn->setIcon(pinIcon);
+    btn->setToolTip(tr("Unpin"));
+  } else {
+    static const QIcon closeIcon(QStringLiteral(":/icons/close.svg"));
+    btn->setIcon(closeIcon);
+    btn->setToolTip(tr("Close"));
+  }
+}
+
 void EditorPane::dragEnterEvent(QDragEnterEvent *e) {
   if (e->mimeData()->hasFormat(TabBar::mimeType())) {
     QByteArray payload = e->mimeData()->data(TabBar::mimeType());
@@ -217,6 +376,13 @@ void EditorPane::dragEnterEvent(QDragEnterEvent *e) {
 
 void EditorPane::dragMoveEvent(QDragMoveEvent *e) {
   if (e->mimeData()->hasFormat(TabBar::mimeType())) {
+    // Pinned tabs can't change groups — reject so the OS shows the forbidden
+    // cursor and the drop no-ops.
+    if (TabBar::draggedTabIsPinned(e->mimeData())) {
+      hideDropOverlay();
+      e->ignore();
+      return;
+    }
     const DropZone zone = zoneAt(e->position().toPoint());
     // Same-pane center: tab is already here. No overlay; ignore the
     // move so the OS shows a "no-drop" cursor.
@@ -264,6 +430,9 @@ void EditorPane::dropEvent(QDropEvent *e) {
   }
 
   if (!e->mimeData()->hasFormat(TabBar::mimeType())) return;
+  // Pinned tabs never cross groups (dragMoveEvent already rejects, but guard
+  // the drop too).
+  if (TabBar::draggedTabIsPinned(e->mimeData())) return;
 
   QByteArray payload = e->mimeData()->data(TabBar::mimeType());
   QDataStream ds(payload);
@@ -427,4 +596,32 @@ void EditorPane::populateTabContextMenu(QMenu *menu, DocumentView *doc) {
   auto *closeAction = menu->addAction(tr("&Close"));
   connect(closeAction, &QAction::triggered, this,
           [this, index]() { onTabCloseRequested(index); });
+
+  // Pin-aware enable states: the bulk closes skip pinned tabs, so each greys
+  // out when nothing it would touch is unpinned. One pass computes both.
+  bool unpinnedOther = false;
+  bool unpinnedRight = false;
+  for (int i = 0; i < count(); ++i) {
+    auto *d = documentAt(i);
+    if (!d || d->isPinned()) continue;
+    if (i != index) unpinnedOther = true;
+    if (i > index) unpinnedRight = true;
+  }
+
+  auto *closeOthersAction = menu->addAction(tr("Close &Others"));
+  closeOthersAction->setEnabled(unpinnedOther);
+  connect(closeOthersAction, &QAction::triggered, this,
+          [this, index]() { closeOthers(index); });
+
+  auto *closeRightAction = menu->addAction(tr("Close to the &Right"));
+  closeRightAction->setEnabled(unpinnedRight);
+  connect(closeRightAction, &QAction::triggered, this,
+          [this, index]() { closeToRight(index); });
+
+  // Closes every unpinned tab in this group; the group collapses if nothing
+  // is left (unless it's the last one). Greyed when all tabs are pinned.
+  auto *closeGroupAction = menu->addAction(tr("Close &Group"));
+  closeGroupAction->setEnabled(hasUnpinnedTabs());
+  connect(closeGroupAction, &QAction::triggered, this,
+          [this]() { closeAll(); });
 }

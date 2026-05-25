@@ -49,16 +49,21 @@ public:
   // Deferred until the document's layout has been computed.
   void scrollToAnchor(int position);
 
-  // Tab metadata — toggled via the tab context menu. The Pin and Watch
-  // flags only carry state for now; nothing else reacts to them yet.
+  // Tab metadata — toggled via the tab context menu.
   bool isPinned() const { return m_pinned; }
-  void setPinned(bool on) { m_pinned = on; }
+  // Emits pinnedChanged() so the owning pane can mark the tab with its pin
+  // sash and keep pinned tabs clustered. No-op if the state is unchanged.
+  void setPinned(bool on);
 
   bool isWatching() const { return m_watching; }
   void setWatching(bool on) { m_watching = on; }
 
 signals:
   void fileLoaded(const QString &canonicalPath);
+
+  // The pinned state changed — the owning EditorPane repaints the tab's pin
+  // sash and (next step) repositions it within the pinned cluster.
+  void pinnedChanged(bool pinned);
 
   // A local-file link was clicked. The path is resolved (absolute, cleaned)
   // against this document's directory; the owner opens it as a new tab.

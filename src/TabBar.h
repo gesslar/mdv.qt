@@ -14,6 +14,10 @@ public:
 
   static const char *mimeType();  // "application/x-mdv-tab"
 
+  // True if the tab-drag payload refers to a pinned document. Pinned tabs are
+  // locked to their group, so drop targets reject them (forbidden cursor).
+  static bool draggedTabIsPinned(const class QMimeData *mime);
+
 protected:
   void mousePressEvent(QMouseEvent *e) override;
   void mouseMoveEvent(QMouseEvent *e) override;

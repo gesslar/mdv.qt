@@ -6,6 +6,7 @@
 class DocumentView;
 class EditorArea;
 class PreferencesDialog;
+class QAction;
 class QLabel;
 class QMenu;
 
@@ -41,6 +42,10 @@ private slots:
   void onPreferences();
   void onPreferencesApplied();
 
+  // Refresh enabled/disabled state of context-dependent File-menu actions
+  // (close family, reopen, recent) right before the menu is shown.
+  void updateFileMenuState();
+
 private:
   void loadRecentFiles();
   void saveRecentFiles();
@@ -52,4 +57,10 @@ private:
   QMenu *m_recentMenu = nullptr;
   QStringList m_recentFiles;
   PreferencesDialog *m_preferencesDialog = nullptr;
+
+  // Held so updateFileMenuState() can toggle them as context changes.
+  QAction *m_closeTabAction = nullptr;
+  QAction *m_closeGroupAction = nullptr;
+  QAction *m_closeAllAction = nullptr;
+  QAction *m_reopenAction = nullptr;
 };

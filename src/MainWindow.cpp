@@ -60,24 +60,25 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   fileMenu->addSeparator();
 
-  auto *closeAction = fileMenu->addAction(tr("&Close Tab"));
-  closeAction->setShortcut(QKeySequence::Close);
-  connect(closeAction, &QAction::triggered, this,
+  m_closeTabAction = fileMenu->addAction(tr("&Close Tab"));
+  m_closeTabAction->setShortcut(QKeySequence::Close);
+  connect(m_closeTabAction, &QAction::triggered, this,
           &MainWindow::onCloseCurrentTab);
 
-  auto *closePaneAction = fileMenu->addAction(tr("Close All in &Pane"));
-  closePaneAction->setShortcut(QKeySequence(tr("Ctrl+Shift+W")));
-  connect(closePaneAction, &QAction::triggered, this,
+  m_closeGroupAction = fileMenu->addAction(tr("Close All in &Group"));
+  m_closeGroupAction->setShortcut(QKeySequence(tr("Ctrl+Shift+W")));
+  connect(m_closeGroupAction, &QAction::triggered, this,
           &MainWindow::onCloseAllInActive);
 
-  auto *closeAllAction = fileMenu->addAction(tr("Close &All Tabs"));
-  closeAllAction->setShortcut(QKeySequence(tr("Ctrl+Alt+Shift+W")));
-  connect(closeAllAction, &QAction::triggered, this,
+  m_closeAllAction = fileMenu->addAction(tr("Close &All Tabs"));
+  m_closeAllAction->setShortcut(QKeySequence(tr("Ctrl+Alt+Shift+W")));
+  connect(m_closeAllAction, &QAction::triggered, this,
           &MainWindow::onCloseAllEverywhere);
 
-  auto *reopenAction = fileMenu->addAction(tr("Reopen Closed &Tab"));
-  reopenAction->setShortcut(QKeySequence(tr("Ctrl+Shift+T")));
-  connect(reopenAction, &QAction::triggered, this, &MainWindow::onReopenClosed);
+  m_reopenAction = fileMenu->addAction(tr("Reopen Closed &Tab"));
+  m_reopenAction->setShortcut(QKeySequence(tr("Ctrl+Shift+T")));
+  connect(m_reopenAction, &QAction::triggered, this,
+          &MainWindow::onReopenClosed);
 
   fileMenu->addSeparator();
 
@@ -90,6 +91,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   auto *quitAction = fileMenu->addAction(tr("&Quit"));
   quitAction->setShortcut(QKeySequence::Quit);
   connect(quitAction, &QAction::triggered, this, &QWidget::close);
+
+  // Refresh the context-dependent actions (close family, reopen, recent) each
+  // time the menu opens, so no-op items show greyed instead of clickable.
+  connect(fileMenu, &QMenu::aboutToShow, this,
+          &MainWindow::updateFileMenuState);
+  // Also refresh on document changes: disabling a QAction disables its
+  // shortcut too, so if we only updated on menu-open, Ctrl+W could stay dead
+  // after opening a file until the File menu was next shown. This keeps the
+  // shortcuts in step with the actual open/close/switch state.
+  connect(m_area, &EditorArea::currentDocumentChanged, this,
+          &MainWindow::updateFileMenuState);
 
   loadRecentFiles();
   rebuildRecentMenu();
@@ -203,6 +215,24 @@ void MainWindow::onCloseAllEverywhere() { m_area->closeAllEverywhere(); }
 
 void MainWindow::onReopenClosed() { m_area->reopenLastClosed(); }
 
+void MainWindow::updateFileMenuState() {
+  EditorPane *active = m_area->activePane();
+
+  // Close Tab closes the current tab explicitly — works even if it's pinned,
+  // so it only needs a tab present.
+  m_closeTabAction->setEnabled(active && active->count() > 0);
+
+  // The bulk closes skip pinned tabs, so they're no-ops (greyed) unless there's
+  // an unpinned tab to act on — in the active group, and anywhere, respectively.
+  m_closeGroupAction->setEnabled(active && active->hasUnpinnedTabs());
+  m_closeAllAction->setEnabled(m_area->hasUnpinnedTabs());
+
+  // Reopen needs something on the closed stack; Recent needs a non-empty list
+  // (the submenu greys out as a whole rather than opening onto nothing).
+  m_reopenAction->setEnabled(m_area->hasClosedTabs());
+  m_recentMenu->menuAction()->setEnabled(!m_recentFiles.isEmpty());
+}
+
 void MainWindow::onPreferences() {
   if (!m_preferencesDialog) {
     m_preferencesDialog = new PreferencesDialog(this);
@@ -287,11 +317,9 @@ void MainWindow::removeFromRecentFiles(const QString &path) {
 void MainWindow::rebuildRecentMenu() {
   m_recentMenu->clear();
 
-  if (m_recentFiles.isEmpty()) {
-    auto *empty = m_recentMenu->addAction(tr("(none)"));
-    empty->setEnabled(false);
-    return;
-  }
+  // When empty, the "Open Recent" parent is greyed by updateFileMenuState(),
+  // so there's nothing to populate here — no "(none)" placeholder needed.
+  if (m_recentFiles.isEmpty()) return;
 
   auto *reopenAllAction = m_recentMenu->addAction(tr("Reopen &All"));
   connect(reopenAllAction, &QAction::triggered, this, [this]() {

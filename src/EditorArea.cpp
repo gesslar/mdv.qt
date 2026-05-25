@@ -277,3 +277,11 @@ EditorPane *EditorArea::makePane() {
 QList<EditorPane *> EditorArea::allPanes() const {
   return findChildren<EditorPane *>();
 }
+
+bool EditorArea::hasUnpinnedTabs() const {
+  const auto panes = allPanes();
+  for (EditorPane *pane : panes) {
+    if (pane->hasUnpinnedTabs()) return true;
+  }
+  return false;
+}
