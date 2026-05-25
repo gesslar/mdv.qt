@@ -17,6 +17,20 @@ TabBar::TabBar(QWidget *parent) : QTabBar(parent) { setAcceptDrops(true); }
 
 const char *TabBar::mimeType() { return "application/x-mdv-tab"; }
 
+bool TabBar::draggedTabIsPinned(const QMimeData *mime) {
+  if (!mime || !mime->hasFormat(mimeType())) return false;
+  QByteArray payload = mime->data(mimeType());
+  QDataStream ds(payload);
+  qintptr ptr = 0;
+  qint32 idx = -1;
+  ds >> ptr >> idx;
+  if (ds.status() != QDataStream::Ok) return false;
+  auto *pane = reinterpret_cast<EditorPane *>(ptr);
+  if (!pane) return false;
+  auto *doc = pane->documentAt(idx);
+  return doc && doc->isPinned();
+}
+
 void TabBar::mousePressEvent(QMouseEvent *e) {
   if (e->button() == Qt::LeftButton) {
     m_pressIndex = tabAt(e->pos());
@@ -60,11 +74,17 @@ void TabBar::dragEnterEvent(QDragEnterEvent *e) {
 }
 
 void TabBar::dragMoveEvent(QDragMoveEvent *e) {
-  if (e->mimeData()->hasFormat(mimeType())) e->acceptProposedAction();
+  if (!e->mimeData()->hasFormat(mimeType())) return;
+  if (draggedTabIsPinned(e->mimeData())) {
+    e->ignore();  // pinned tabs can't change groups — forbidden cursor
+    return;
+  }
+  e->acceptProposedAction();
 }
 
 void TabBar::dropEvent(QDropEvent *e) {
   if (!e->mimeData()->hasFormat(mimeType())) return;
+  if (draggedTabIsPinned(e->mimeData())) return;  // pinned: locked to its group
 
   QByteArray payload = e->mimeData()->data(mimeType());
   QDataStream ds(payload);

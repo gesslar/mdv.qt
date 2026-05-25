@@ -42,6 +42,17 @@ public:
   // last surviving one.
   void closeAll();
 
+  // Close every tab except the one at `index`. Pinned tabs survive.
+  void closeOthers(int index);
+
+  // Close every tab positioned after `index` (to its right). Pinned tabs
+  // survive.
+  void closeToRight(int index);
+
+  // True if this pane holds at least one unpinned tab — i.e. a bulk close
+  // (Others / to-the-Right / Group / All) would actually remove something.
+  bool hasUnpinnedTabs() const;
+
   // Cycle through tabs with wrap-around. No-op when there's <= 1 tab.
   void nextTab();
   void previousTab();
@@ -83,12 +94,28 @@ private slots:
   void onCurrentChanged(int index);
   void onTabContextMenu(const QPoint &pos);
 
+  // A contained document's pinned state flipped — swap its tab button
+  // between the close (×) and pin (Unpin) roles.
+  void onDocPinnedChanged();
+
 private:
   QRect bodyRect() const;
   DropZone zoneAt(const QPoint &pos) const;
   QRect zoneRect(DropZone z) const;
   void showDropOverlay(DropZone z);
   void hideDropOverlay();
+
+  // The tab's trailing button is ours, not QTabBar's auto close button, so we
+  // can swap it between close (×, click closes) and pin (click unpins). Owning
+  // it for every tab avoids QTabBar's inability to restore an auto close button.
+  void installTabButton(int index, DocumentView *doc);
+  void refreshTabButton(DocumentView *doc);
+
+  // Keep pinned tabs clustered at the left (stable order within each zone).
+  // Runs on pin/unpin and after a manual reorder; the guard stops the moveTab
+  // calls from re-entering via tabMoved.
+  void enforcePinPartition();
+  bool m_reordering = false;
 
   QWidget *m_dropOverlay = nullptr;
   EditorPane *m_dragSource = nullptr;

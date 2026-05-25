@@ -1,6 +1,8 @@
 <RCC>
   <qresource prefix="/">
     <file>icons/mdv.png</file>
+    <file>icons/pin.svg</file>
+    <file>icons/close.svg</file>
     <file>content/content.qss.template</file>
     <file>themes/blackboard.content.json</file>
     <file>themes/bubblegum-goth.content.json</file>

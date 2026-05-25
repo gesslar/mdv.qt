@@ -272,3 +272,9 @@ QString DocumentView::displayName() const {
   if (m_filePath.isEmpty()) return tr("(untitled)");
   return QFileInfo(m_filePath).fileName();
 }
+
+void DocumentView::setPinned(bool on) {
+  if (m_pinned == on) return;
+  m_pinned = on;
+  emit pinnedChanged(on);
+}

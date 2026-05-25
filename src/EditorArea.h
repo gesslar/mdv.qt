@@ -41,12 +41,19 @@ public:
   // it's the last surviving one.
   void closeAllInActive();
 
-  // Close every tab in every pane. All non-root panes are destroyed;
-  // the root pane is preserved as an empty placeholder.
+  // Close every unpinned tab in every pane. Panes left empty collapse (the
+  // root pane is preserved as a placeholder); panes still holding pinned tabs
+  // stay put.
   void closeAllEverywhere();
 
   EditorPane *activePane() const { return m_active; }
   DocumentView *currentDocument() const;
+
+  // True if any pane holds at least one unpinned (bulk-closeable) tab.
+  bool hasUnpinnedTabs() const;
+
+  // True if the reopen-closed stack has any entry to restore.
+  bool hasClosedTabs() const { return !m_closedStack.isEmpty(); }
 
 signals:
   void currentDocumentChanged(DocumentView *doc);
