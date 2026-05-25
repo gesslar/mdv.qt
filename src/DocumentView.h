@@ -3,7 +3,9 @@
 #include <QPoint>
 #include <QWidget>
 
+class QFileSystemWatcher;
 class QTextBrowser;
+class QTimer;
 class QUrl;
 
 class DocumentView : public QWidget {
@@ -56,7 +58,9 @@ public:
   void setPinned(bool on);
 
   bool isWatching() const { return m_watching; }
-  void setWatching(bool on) { m_watching = on; }
+  // Start/stop watching the file on disk. While watching, an external write
+  // triggers an in-place reload that preserves zoom and scroll position.
+  void setWatching(bool on);
 
 signals:
   void fileLoaded(const QString &canonicalPath);
@@ -72,12 +76,19 @@ signals:
 private slots:
   void onContextMenuRequested(const QPoint &pos);
   void onAnchorClicked(const QUrl &url);
+  // The watched file changed on disk — debounced before reloadFromDisk().
+  void onFileChanged(const QString &path);
 
 private:
   QTextBrowser *m_browser = nullptr;
   QString m_filePath;
   bool m_pinned = false;
   bool m_watching = true;
+
+  // Hot reload: m_watcher fires on external writes; m_reloadTimer debounces
+  // the burst of events editors emit before we re-render in place.
+  QFileSystemWatcher *m_watcher = nullptr;
+  QTimer *m_reloadTimer = nullptr;
 
   // Pending scroll anchor state used by scrollToAnchor() to defer until
   // QTextDocument has laid out enough to know each block's geometry.
@@ -87,4 +98,19 @@ private:
   class QTimer *m_pendingAnchorTimer = nullptr;
 
   bool tryApplyAnchor();
+
+  // (Re)point the watcher at m_filePath when watching is on; clears it
+  // otherwise. Safe to call repeatedly (used after load and after each reload,
+  // since an atomic save drops the watched path).
+  void armWatch();
+
+  // Re-render the file in place, preserving zoom (the font is left untouched)
+  // and scroll position (remapped across the edit via remapAnchor).
+  void reloadFromDisk();
+
+  // Map a character offset from the old rendered plain text to the new one
+  // using a common prefix/suffix diff: unchanged if the edit was below it,
+  // shifted by the net length delta if above, best-effort positional if the
+  // offset falls inside the changed region.
+  int remapAnchor(int pos, const QString &oldText, const QString &newText) const;
 };
