@@ -61,15 +61,29 @@ echo "==> build $FORMAT in $IMAGE (as uid $(id -u))"
   "$IMAGE" bash -euc '
     mkdir -p /tmp/fphome /tmp/xdg && chmod 700 /tmp/xdg
 
-    # DIAGNOSTIC (temporary): intercept calls to appstreamcli so we can see
-    # the exact arguments flatpak-builder passes during its compose step.
-    # The failing call only prints its post-failure summary in the build log,
-    # not the args that triggered it; this wrapper logs argv to stderr before
-    # delegating to the real binary. /tmp/bin is writable as the unprivileged
-    # container user; prepending it to PATH wins over /usr/bin/appstreamcli.
-    # Only the flatpak path actually invokes appstreamcli, so the wrapper is a
-    # no-op for the other formats — installing unconditionally keeps the script
-    # simple. Remove this block once flatpak-builders compose call is understood.
+    # Wrapper for appstreamcli that strips XDG_RUNTIME_DIR from its environment.
+    #
+    # Why: appstreamcli compose uses glycin to load PNG icons for thumbnailing,
+    # and glycin sandboxes its image loader via bwrap. When constructing the
+    # bwrap command, glycin first sets `--setenv XDG_RUNTIME_DIR /tmp-run` to
+    # match its own sandbox-internal tmpfs, then forwards the parent process`s
+    # XDG_RUNTIME_DIR with a second `--setenv` — and the second wins. In the
+    # container, the parent`s XDG_RUNTIME_DIR is /tmp/xdg (set above so
+    # flatpak-builder can talk to its own dbus), but /tmp/xdg does NOT exist
+    # inside glycin`s bwrap sandbox (only /tmp-home and /tmp-run are mounted
+    # as tmpfs there). The loader process crashes at startup with exit code 1,
+    # and appstreamcli surfaces that as `E: file-read-error` against the icon.
+    #
+    # Unsetting XDG_RUNTIME_DIR just for appstreamcli`s subprocess gives glycin
+    # nothing to forward, so the sandbox`s own /tmp-run setenv stands. The
+    # parent (flatpak-builder) keeps its XDG_RUNTIME_DIR untouched.
+    #
+    # This is arguably a bug in glycin (it shouldn`t clobber its own sandbox
+    # env with the parent`s); link to upstream if/when one is filed.
+    #
+    # The argv-logging block was diagnostic and is now redundant; leaving it
+    # in temporarily so the next CI run still shows the intercepted call for
+    # the record. Remove the logging once we`ve confirmed the fix sticks.
     mkdir -p /tmp/bin
     cat > /tmp/bin/appstreamcli <<"WRAPPER_EOF"
 #!/bin/bash
@@ -82,9 +96,10 @@ echo "==> build $FORMAT in $IMAGE (as uid $(id -u))"
     printf "  argv[%d]: %q\n" "$i" "$arg"
     i=$((i+1))
   done
+  printf "(stripping XDG_RUNTIME_DIR so glycin does not forward it into bwrap)\n"
   printf "================================================================\n"
 } >&2
-exec /usr/bin/appstreamcli "$@"
+exec env -u XDG_RUNTIME_DIR /usr/bin/appstreamcli "$@"
 WRAPPER_EOF
     chmod +x /tmp/bin/appstreamcli
     export PATH=/tmp/bin:$PATH
