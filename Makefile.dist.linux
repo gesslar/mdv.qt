@@ -42,6 +42,11 @@ rpm: release
 # referenced once, so there's no re-eval cost.
 MDV_VERSION = $(shell sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9.]+).*/\1/p' CMakeLists.txt | head -1)
 MDV_ARCH    = $(shell flatpak --default-arch 2>/dev/null || uname -m)
+# The flatpak branch (release channel) flatpak-builder exports the app under.
+# build-bundle defaults its branch arg to "master", so we MUST pass it the real
+# one or it bundles a stale/absent master ref. Sourced from default-branch in the
+# manifest so the manifest stays the single source (mirrors MDV_VERSION above).
+MDV_BRANCH  = $(shell sed -nE 's/^default-branch:[[:space:]]*([^[:space:]]+).*/\1/p' dev.gesslar.mdv.yml | head -1)
 
 # Flatpak: build mdv against the KDE runtime via flatpak-builder, then bundle a
 # single-file dist/mdv-<version>-<arch>.flatpak. --install-deps-from=flathub
@@ -69,7 +74,7 @@ flatpak:
 	flatpak build-bundle \
 	  --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo \
 	  $(DIST_DIR)/flatpak-repo \
-	  $(DIST_DIR)/mdv-$(MDV_VERSION)-$(MDV_ARCH).flatpak dev.gesslar.mdv
+	  $(DIST_DIR)/mdv-$(MDV_VERSION)-$(MDV_ARCH).flatpak dev.gesslar.mdv $(MDV_BRANCH)
 
 # AppImage: a patchelf-free single-file bundle. scripts/appimage.sh hand-rolls
 # the deploy (pristine libs + a wrapper AppRun) because patchelf corrupts this

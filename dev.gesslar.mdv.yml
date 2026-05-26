@@ -10,6 +10,10 @@
 # (type: git with url + tag + commit) — Flathub builds from a published ref,
 # not a local checkout.
 id: dev.gesslar.mdv
+# The flatpak "branch" is a release-channel label, not a git branch; left unset
+# it defaults to "master". We pin it to match our git default branch. (Flathub
+# expects "stable" for published apps — switch this before a Flathub submission.)
+default-branch: main
 runtime: org.kde.Platform
 runtime-version: '6.9'
 sdk: org.kde.Sdk
