@@ -97,15 +97,13 @@ echo "==> build $FORMAT in $IMAGE (as uid $(id -u))"
     i=$((i+1))
   done
   printf "(parent XDG_RUNTIME_DIR before unset: %q)\n" "${XDG_RUNTIME_DIR-(unset)}"
-  printf "(verifying env -u actually unsets it for the child:)\n"
-  env -u XDG_RUNTIME_DIR bash -c 'printf "  child sees XDG_RUNTIME_DIR=%q\n" "${XDG_RUNTIME_DIR-(unset)}"'
-  printf "(injecting --verbose after compose so we capture the bwrap spawn)\n"
+  printf "(stripping via env -u and injecting --verbose so glycins bwrap command lands in stderr)\n"
   printf "================================================================\n"
 } >&2
 
-# Inject --verbose right after the "compose" subcommand so glycin's bwrap
-# command lands in stderr and we can confirm whether the second
-# "--setenv XDG_RUNTIME_DIR ..." is gone after the env -u strip.
+# Inject --verbose right after the "compose" subcommand so the bwrap
+# command glycin builds lands in stderr, letting us confirm whether the
+# second "--setenv XDG_RUNTIME_DIR ..." is gone after the env -u strip.
 new_args=()
 for arg in "$@"; do
   new_args+=("$arg")
