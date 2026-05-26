@@ -3,8 +3,8 @@
 # (NOT CPack — see cmake/Packaging.cmake for why), driving makensis against
 # cmake/mdv.nsi.in.
 #
-#     make exe    → dist/mdv-<version>-win64.exe
-#     make dist   → same
+#     make windows → dist/mdv-<version>-win64.exe
+#     make dist    → same
 #
 # The installer offers the user a choice between per-user (no admin, install
 # to %LOCALAPPDATA%\Programs\mdv) and per-machine (admin, Program Files\mdv)
@@ -25,17 +25,18 @@
 # DIST_DIR (the output directory) comes from the top-level Makefile, alongside
 # DEV_DIR / RELEASE_DIR, so `make distclean` there can sweep it too.
 
-.PHONY: dist exe
+.PHONY: dist windows
 
-# Every Windows package format. Single artifact today; keeps the verb parallel
-# to `make dist` on Linux (which fans out to deb + rpm).
-dist: exe
+# `make dist` = the native-host aggregate (parallel to Linux's `make dist`); one
+# Windows format today, so it just maps to `make windows`.
+dist: windows
 
-# Re-configure the release tree with MDV_PACKAGE_OUTPUT_DIR pointing at our
-# DIST_DIR (otherwise the artifact lands inside the build dir), then drive
-# the package_nsis custom target. The target stages the install tree via
-# `cmake --install` and runs makensis on the generated mdv.nsi.
-exe: release
+# `make windows` — the Windows release verb (parallels `make linux`). Re-configure
+# the release tree with MDV_PACKAGE_OUTPUT_DIR pointing at our DIST_DIR (otherwise
+# the artifact lands inside the build dir), then drive the package_nsis custom
+# target: it stages the install tree via `cmake --install` and runs makensis on
+# the generated mdv.nsi.
+windows: release
 	cmake -S . -B $(RELEASE_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release \
 	    -DMDV_PACKAGE_OUTPUT_DIR=$(CURDIR)/$(DIST_DIR) $(PREFIX_FLAG)
 	cmake --build $(RELEASE_DIR) --target package_nsis

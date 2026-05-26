@@ -8,6 +8,9 @@
 #     make flatpak  → dist/mdv-<version>-<arch>.flatpak  (KDE runtime; pulls the SDK once)
 #     make appimage → dist/mdv-<version>-<arch>.AppImage (patchelf-free; needs appimagetool)
 #
+#     make linux → all of the above, built in a pinned Fedora container
+#                  (reproducible, CI-ready, artifacts owned by you)
+#
 # A .deb needs dpkg-deb on PATH; a .rpm needs rpmbuild; a .flatpak needs flatpak
 # + flatpak-builder; an .AppImage needs appimagetool. See DEVELOPMENT.md for how
 # to install them (they're not build deps — only packaging deps).
@@ -15,7 +18,7 @@
 # DIST_DIR (the output directory) comes from the top-level Makefile, alongside
 # DEV_DIR / RELEASE_DIR, so `make distclean` there can sweep it too.
 
-.PHONY: dist deb rpm flatpak appimage
+.PHONY: dist deb rpm flatpak appimage linux
 
 # Every Linux package format.
 dist: deb rpm
@@ -46,8 +49,13 @@ MDV_ARCH    = $(shell flatpak --default-arch 2>/dev/null || uname -m)
 # of the CPack path above — flatpak-builder builds its own copy of mdv in the
 # sandbox from dev.gesslar.mdv.yml. Deliberately NOT part of `dist`, so a routine
 # `make dist` doesn't trigger the SDK download. See DEVELOPMENT.md.
+#
+# --disable-rofiles-fuse skips the inter-stage read-only FUSE overlay (a build-
+# cache optimization): a minor speed cost, but it lets the build run inside a
+# container, which can't mount FUSE. Harmless on the host.
 flatpak:
 	flatpak-builder --force-clean --user --install-deps-from=flathub \
+	  --disable-rofiles-fuse \
 	  --state-dir=$(DIST_DIR)/.flatpak-builder \
 	  --repo=$(DIST_DIR)/flatpak-repo \
 	  $(DIST_DIR)/flatpak-build dev.gesslar.mdv.yml
@@ -60,3 +68,9 @@ flatpak:
 # appimagetool on PATH; NOT part of `dist` (its own format).
 appimage: release
 	scripts/appimage.sh
+
+# linux: build EVERY format (deb, rpm, AppImage, Flatpak) in the pinned Fedora
+# container (docker/Dockerfile) — reproducible, CI-trivial, artifacts owned by
+# you. The whole Linux packaging surface in one command. See docker/dist.sh.
+linux:
+	docker/dist.sh
