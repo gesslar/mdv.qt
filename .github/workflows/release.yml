@@ -208,15 +208,21 @@ jobs:
               # metainfo at dist/flatpak-build/files/share/.
               mkdir -p /tmp/diag-root
               ln -sfn /work/dist/flatpak-build/files /tmp/diag-root/app
-              mkdir -p /tmp/compose-result /tmp/compose-data
+              mkdir -p /tmp/compose-result /tmp/compose-data /tmp/compose-media /tmp/compose-icons
 
-              # --media-baseurl re-enables screenshot fetching (the previous
-              # diagnostic`s verbose log showed the storage was being disabled
-              # without it, which would mask any URL-fetch failure).
+              # Critical: --media-dir is what actually enables screenshot
+              # *storage*, which in turn enables the URL fetch we suspect is
+              # failing in flatpak-builder`s call. The previous run confirmed
+              # via debug log ("No media export directory set, but screenshots
+              # are supposed to be stored. Disabling screenshot storage.") that
+              # without it appstreamcli short-circuits screenshot handling and
+              # the URL-fetch failure mode can never surface.
               appstreamcli compose --verbose \
                 --prefix=/app \
                 --result-root=/tmp/compose-result \
                 --data-dir=/tmp/compose-data \
+                --media-dir=/tmp/compose-media \
+                --icons-dir=/tmp/compose-icons \
                 --media-baseurl=https://example.com/media \
                 --components=dev.gesslar.mdv,dev.gesslar.mdv.desktop \
                 /tmp/diag-root
