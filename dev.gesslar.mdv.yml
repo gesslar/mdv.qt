@@ -31,6 +31,39 @@ cleanup:
   - /lib/cmake
   - '*.a'
 
+# Skip flatpak-builder's appstreamcli-compose finalization step.
+#
+# Root cause: compose uses the glycin library to thumbnail the app icon at
+# /share/icons/hicolor/512x512/apps/dev.gesslar.mdv.png. Glycin sandboxes
+# its image-loader process via `bwrap --unshare-all`, which creates a fresh
+# network namespace and brings up loopback inside it. On GitHub-hosted
+# runners the kernel refuses that loopback-address assignment, even from a
+# --privileged container:
+#
+#   bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+#
+# The loader process then exits with status 1 and appstreamcli surfaces it
+# as `E: file-read-error` against the icon, followed by
+# `E: filters-but-no-output` because no component survived.
+#
+# Glycin runs a bwrap-availability check ahead of the real spawn that would
+# normally route this to a no-sandbox fallback (which works on this runner),
+# but the check only matches one specific stderr string and ignores exit
+# codes, so it falsely concludes bwrap works. Upstream bug; not fixable
+# from here.
+#
+# WSL2's kernel does not restrict RTM_NEWADDR the same way, which is why
+# `make linux` succeeds locally against the same pinned Fedora image.
+#
+# Cost of skipping: the bundle still ships the metainfo XML at
+# /share/metainfo/ as usual (software centers and `flatpak info` read it),
+# just without a pre-compiled AppStream index baked into the bundle. End
+# users see no functional difference — their host's appstreamcli composes
+# from the same XML at install time. Flathub does its own compose on
+# submission, so this setting is irrelevant there: flip to `true` (or
+# delete this block) before a Flathub submission.
+appstream-compose: false
+
 modules:
   # Third-party Markdown parser — the one external source, pinned upstream.
   - name: md4c
