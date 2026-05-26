@@ -97,10 +97,13 @@ jobs:
       # Qt 6 + a matching MinGW (the toolchain DEVELOPMENT.md targets first).
       # `cache: true` keeps the ~2 GB Qt download out of the critical path on
       # subsequent runs.
+      # Qt 6.9.0 is the minimum KSyntaxHighlighting v6.26 (what CMakeLists
+      # fetches in-tree on Windows) accepts — see _deps/ksyntaxhighlighting-src
+      # CMakeLists.txt :42, which calls find_package(Qt6 6.9.0 ...).
       - name: Install Qt 6 + MinGW
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.0'
+          version: '6.9.0'
           host: windows
           target: desktop
           arch: win64_mingw
