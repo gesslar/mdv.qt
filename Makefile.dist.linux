@@ -2,19 +2,20 @@
 # on Linux. Produces .deb and .rpm via CPack against the release build; the
 # package metadata (deps, license, sections) lives in cmake/Packaging.cmake.
 #
-#     make deb     → dist/mdv_<version>_<arch>.deb
-#     make rpm     → dist/mdv-<version>-1.<arch>.rpm
-#     make dist    → both
-#     make flatpak → dist/mdv-<version>-<arch>.flatpak (KDE runtime; pulls the SDK once)
+#     make deb      → dist/mdv_<version>_<arch>.deb
+#     make rpm      → dist/mdv-<version>-1.<arch>.rpm
+#     make dist     → both
+#     make flatpak  → dist/mdv-<version>-<arch>.flatpak  (KDE runtime; pulls the SDK once)
+#     make appimage → dist/mdv-<version>-<arch>.AppImage (patchelf-free; needs appimagetool)
 #
 # A .deb needs dpkg-deb on PATH; a .rpm needs rpmbuild; a .flatpak needs flatpak
-# + flatpak-builder. See DEVELOPMENT.md for how to install them (they're not
-# build deps — only packaging deps).
+# + flatpak-builder; an .AppImage needs appimagetool. See DEVELOPMENT.md for how
+# to install them (they're not build deps — only packaging deps).
 #
 # DIST_DIR (the output directory) comes from the top-level Makefile, alongside
 # DEV_DIR / RELEASE_DIR, so `make distclean` there can sweep it too.
 
-.PHONY: dist deb rpm flatpak
+.PHONY: dist deb rpm flatpak appimage
 
 # Every Linux package format.
 dist: deb rpm
@@ -52,3 +53,10 @@ flatpak:
 	  $(DIST_DIR)/flatpak-build dev.gesslar.mdv.yml
 	flatpak build-bundle $(DIST_DIR)/flatpak-repo \
 	  $(DIST_DIR)/mdv-$(MDV_VERSION)-$(MDV_ARCH).flatpak dev.gesslar.mdv
+
+# AppImage: a patchelf-free single-file bundle. scripts/appimage.sh hand-rolls
+# the deploy (pristine libs + a wrapper AppRun) because patchelf corrupts this
+# distro's RELR libraries — the script header has the full why. Needs
+# appimagetool on PATH; NOT part of `dist` (its own format).
+appimage: release
+	scripts/appimage.sh

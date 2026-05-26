@@ -161,6 +161,32 @@ flatpak run dev.gesslar.mdv                 # run/install are by app-id, not fil
 For a Flathub submission, repoint the `mdv` module source from this local
 checkout to a pinned remote (url + tag + commit).
 
+### AppImage
+
+A single-file `.AppImage` is built with `appimagetool`, but the dependency
+deploy is **hand-rolled** (`scripts/appimage.sh`) rather than via linuxdeploy.
+The reason: patchelf — which linuxdeploy uses to stamp each bundled library with
+an `$ORIGIN` RUNPATH — corrupts libraries carrying RELR relocations
+(`.relr.dyn`, which Fedora's toolchain emits by default), so a random lib
+segfaults in `_dl_init` before `main()`. Instead we copy the dependency closure
+**byte-pristine** and resolve it at runtime with a wrapper `AppRun` that sets
+`LD_LIBRARY_PATH` — no ELF is ever rewritten.
+
+```bash
+make appimage   # → dist/mdv-<version>-<arch>.AppImage
+```
+
+**Tooling** (packaging dep, not a build dep): `appimagetool` on `PATH`. Bundled
+libraries exclude the host-provided set per `scripts/excludelist` (the upstream
+AppImage list, kept byte-identical and diffable) plus `scripts/excludelist.mdv`
+(our additions — the systemd/dbus/crypto/network libs Qt drags in that a local
+viewer never needs). `scripts/appdir-lint.sh` (also straight from the AppImage
+project) validates the AppDir against AppImageHub's rules.
+
+> The AppImage is built on the host for now, so its glibc floor is the build
+> host's. A reproducible Fedora build container — building the Flatpak too — is
+> a planned follow-up.
+
 macOS will get its own `Makefile.dist.macos` include when that build path is
 ready.
 
