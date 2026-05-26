@@ -19,7 +19,7 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
 set(CPACK_PACKAGE_DESCRIPTION
     "mdv is a fast, offline desktop viewer for Markdown files, with syntax-\
 highlighted code blocks and themeable rendering.")
-set(CPACK_PACKAGE_VENDOR gesslar)
+set(CPACK_PACKAGE_VENDOR ${MDV_ORG})
 set(CPACK_PACKAGE_CONTACT "Brian M. Workman <bmw@gesslar.dev>")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/gesslar/mdv.qt")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE.txt")

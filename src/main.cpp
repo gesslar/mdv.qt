@@ -7,15 +7,18 @@
 int main(int argc, char *argv[]) {
   QApplication app(argc, argv);
 
-  QCoreApplication::setOrganizationName("gesslar");
-  QCoreApplication::setApplicationName("mdv");
-  QCoreApplication::setApplicationVersion("2.0.0");
+  // Identity comes from CMake (MDV_* compile defs, see CMakeLists.txt), so the
+  // version lives in exactly one place: project(VERSION) there.
+  QCoreApplication::setOrganizationName(MDV_ORG);
+  QCoreApplication::setApplicationName(MDV_APP);
+  QCoreApplication::setApplicationVersion(MDV_VERSION);
 
   // Window icon for X11 title bars, Windows, and macOS. On Wayland this does
   // NOT drive the dock/taskbar icon — that comes from a .desktop file whose
-  // basename matches the app_id set below (see resources/mdv.desktop).
+  // basename matches the app_id set below (see
+  // resources/dev.gesslar.mdv.desktop).
   app.setWindowIcon(QIcon(QStringLiteral(":/icons/mdv.png")));
-  QGuiApplication::setDesktopFileName(QStringLiteral("mdv"));
+  QGuiApplication::setDesktopFileName(QStringLiteral("dev.gesslar.mdv"));
 
   QCommandLineParser parser;
   parser.setApplicationDescription("An offline Markdown viewer.");

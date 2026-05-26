@@ -6,6 +6,29 @@ project(mdv
     LANGUAGES CXX
 )
 
+# Single source of the app's identity. project() above owns the version and the
+# name (PROJECT_VERSION / PROJECT_NAME); MDV_ORG is the one extra string. These
+# feed the binary (compile defs), CPack (cmake/Packaging.cmake), and the
+# AppStream metainfo (configure_file) — so cutting a release is a one-line bump
+# of VERSION above, nowhere else.
+set(MDV_ORG "gesslar")
+# AppStream release date = the commit date of the built ref. Stable for a given
+# source state (rebuilding never moves it) and, for a CD release built from a
+# tag, it IS the tag date. Falls back to the build date only when git is
+# unavailable (e.g. a source tarball with no .git).
+find_package(Git QUIET)
+if(Git_FOUND)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} log -1 --format=%cd --date=short
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE MDV_RELEASE_DATE
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+endif()
+if(NOT MDV_RELEASE_DATE)
+    string(TIMESTAMP MDV_RELEASE_DATE "%Y-%m-%d" UTC)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -254,6 +277,12 @@ target_link_libraries(mdv PRIVATE Qt6::Widgets ${MD4C} ${KSH})
 
 target_include_directories(mdv PRIVATE src)
 
+# Bake the identity into the binary so main.cpp doesn't re-hardcode it.
+target_compile_definitions(mdv PRIVATE
+    MDV_ORG="${MDV_ORG}"
+    MDV_APP="${PROJECT_NAME}"
+    MDV_VERSION="${PROJECT_VERSION}")
+
 # Qt autogen is scoped to this target (rather than set globally) so the
 # FetchContent md4c build doesn't inherit AUTOMOC — which would emit a stray
 # C++ moc unit and trip md4c's C-only -Wdeclaration-after-statement flag.
@@ -265,18 +294,26 @@ set_target_properties(mdv PROPERTIES
     MACOSX_BUNDLE ON
 )
 
-# Linux desktop integration: install the launcher and a themed icon so the
-# Wayland/X11 compositor can match the running window (app_id "mdv") to its
-# icon. On Wayland the dock icon comes ONLY from this .desktop match, never
-# from QApplication::setWindowIcon(). No-op for Windows/macOS packaging.
+# Linux desktop integration: install the launcher, AppStream metainfo, and a
+# themed icon so the Wayland/X11 compositor can match the running window
+# (app_id "dev.gesslar.mdv") to its icon, and software centers can list the app.
+# On Wayland the dock icon comes ONLY from this .desktop match, never from
+# QApplication::setWindowIcon(). No-op for Windows/macOS packaging.
 if(UNIX AND NOT APPLE)
     include(GNUInstallDirs)
+
+    # Generate the metainfo with version/date filled from the single source above.
+    configure_file(resources/dev.gesslar.mdv.metainfo.xml.in
+        ${CMAKE_CURRENT_BINARY_DIR}/dev.gesslar.mdv.metainfo.xml @ONLY)
+
     install(TARGETS mdv RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-    install(FILES resources/mdv.desktop
+    install(FILES resources/dev.gesslar.mdv.desktop
         DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/dev.gesslar.mdv.metainfo.xml
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo)
     install(FILES resources/icons/mdv.png
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/512x512/apps
-        RENAME mdv.png)
+        RENAME dev.gesslar.mdv.png)
 endif()
 
 # Windows install layout follows the Qt deploy convention:
