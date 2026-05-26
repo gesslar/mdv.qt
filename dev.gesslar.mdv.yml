@@ -31,6 +31,27 @@ cleanup:
   - /lib/cmake
   - '*.a'
 
+# Skip flatpak-builder's `appstreamcli compose` finalization step.
+#
+# Why: compose fails deterministically with `E: file-read-error` on
+# GitHub-hosted runners, but succeeds locally (WSL2 + Docker Desktop) against
+# the same pinned Fedora image and same docker/dist.sh — so the cause is
+# environmental to the runner, not a bug in the metainfo or manifest. The
+# exact file behind the read-error is still unknown; verbose flatpak-builder
+# logs don't surface it. This setting dodges the whole compose step rather
+# than guessing at the root cause.
+#
+# Cost of skipping: the bundle ships the metainfo XML at /share/metainfo/ as
+# usual (software centers and `flatpak info` still read it), but without a
+# pre-compiled appstream index baked into the bundle. End users see no
+# functional difference — appstreamcli on their host composes from the same
+# XML when they install. Flathub does its own compose on submission, so this
+# is irrelevant there: flip to `true` (or just delete this) before submitting.
+#
+# TODO: when curiosity strikes, add `appstreamcli compose --verbose` as a
+# manual CI step on the staged install tree to identify the actual file.
+appstream-compose: false
+
 modules:
   # Third-party Markdown parser — the one external source, pinned upstream.
   - name: md4c

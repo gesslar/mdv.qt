@@ -157,6 +157,37 @@ jobs:
       - name: Build deb / rpm / AppImage / Flatpak
         run: make linux
 
+      # DIAGNOSTIC (temporary): re-run `appstreamcli compose` manually with
+      # --verbose against the tree flatpak-builder already staged at
+      # dist/flatpak-build/files. The same compose call inside flatpak-builder
+      # fails on this runner with a bare `E: file-read-error` but works on
+      # local WSL2 against the same pinned Fedora image — running it ourselves
+      # with verbose output should print the actual filename behind the error.
+      # Marked continue-on-error so the (expected) failure doesn't redden CI;
+      # remove this step once we've identified the cause.
+      - name: Diagnose appstreamcli compose
+        if: always()
+        continue-on-error: true
+        run: |
+          docker run --rm --platform=linux/amd64 \
+            -v "$PWD":/work -w /work \
+            mdv-build \
+            bash -euxc '
+              appstreamcli --version
+              echo "=== metainfo as installed into the flatpak tree ==="
+              cat dist/flatpak-build/files/share/metainfo/dev.gesslar.mdv.metainfo.xml
+              echo "=== staged tree contents (share/) ==="
+              find dist/flatpak-build/files/share -maxdepth 4 -type f | sort
+              echo "=== reproducing the failing compose with --verbose ==="
+              mkdir -p /tmp/compose-result /tmp/compose-data
+              appstreamcli compose --verbose \
+                --prefix=/app \
+                --result-root=/tmp/compose-result \
+                --data-dir=/tmp/compose-data \
+                --components=dev.gesslar.mdv,dev.gesslar.mdv.desktop \
+                dist/flatpak-build/files
+            '
+
       - name: Upload Linux packages
         uses: actions/upload-artifact@v7
         with:
