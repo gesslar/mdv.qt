@@ -136,10 +136,16 @@ jobs:
           if-no-files-found: error
 
   linux:
-    name: Linux packages
+    name: Linux ${{ matrix.format }}
     needs: determine-version
     if: ${{ needs.determine-version.outputs.version != '🙅🏻‍♂️' }}
     runs-on: ubuntu-latest
+    strategy:
+      # fail-fast: false so a Flatpak failure doesn't kill the in-flight
+      # deb/rpm/AppImage builds — we want all four results in one go.
+      fail-fast: false
+      matrix:
+        format: [deb, rpm, appimage, flatpak]
     steps:
       # fetch-depth: 0 so CMake's AppStream metainfo step can derive the
       # release date from `git log` (CMakeLists.txt notes this falls back to
@@ -148,32 +154,33 @@ jobs:
         with:
           fetch-depth: 0
 
-      # The first `make linux` pulls org.kde.Platform/Sdk 6.9 (~1.5 GB).
-      # docker/dist.sh stores this under ~/.cache/mdv-flatpak; persist it across
-      # runs so only the very first build pays for the download.
+      # Only the flatpak entry pulls org.kde.Platform/Sdk 6.9 (~1.5 GB);
+      # docker/dist.sh stores it under ~/.cache/mdv-flatpak. The other three
+      # formats don't touch the KDE runtime at all, so the cache step is gated
+      # on matrix.format to avoid a useless save/restore on those entries.
       - name: Cache Flatpak KDE runtime
+        if: matrix.format == 'flatpak'
         uses: actions/cache@v5
         with:
           path: ~/.cache/mdv-flatpak
           key: mdv-flatpak-kde-6.9-${{ runner.os }}
 
-      # Builds inside the pinned Fedora container (docker/Dockerfile), so the
-      # runner only needs Docker — which ubuntu-latest already has.
-      - name: Build deb / rpm / AppImage / Flatpak
-        run: make linux
+      # Each matrix entry builds its own format inside the pinned Fedora
+      # container. Runners are independent, so the four run in parallel —
+      # wall-clock time is bounded by the slowest (flatpak), instead of the
+      # sum of all four. docker/dist.sh accepts the format as its first arg.
+      - name: Build ${{ matrix.format }}
+        run: ./docker/dist.sh ${{ matrix.format }}
 
-      # DIAGNOSTIC (temporary): reproduce the appstreamcli compose call that
-      # fails inside flatpak-builder, but with --verbose, --media-baseurl
-      # (which re-enables screenshot fetching — the previous run showed
-      # appstreamcli was disabling that without it), and a proper /app symlink
-      # so the unit lookup resolves to the staged tree instead of hitting
-      # unit-read-error. Prefixed with a curl probe from inside the same
-      # container, which is the cheapest way to confirm or rule out the
-      # "screenshot URLs are unreachable from inside the runner's container"
-      # hypothesis. No continue-on-error: a failure here fails the job, which
-      # is what we want while iterating on the cause.
+      # DIAGNOSTIC (temporary, flatpak-only): reproduce the appstreamcli
+      # compose call that fails inside flatpak-builder, but with --verbose
+      # and --hints-dir (which writes structured issue reports naming the
+      # file behind file-read-error). Only relevant to the flatpak entry —
+      # deb/rpm/AppImage don't invoke appstreamcli compose at all. Runs even
+      # on build failure (`if: always()`) because the flatpak build is the
+      # one we *expect* to fail until the cause is fixed.
       - name: Diagnose appstreamcli compose
-        if: always()
+        if: always() && matrix.format == 'flatpak'
         run: |
           # Mirror docker/dist.sh's invocation exactly so the diagnostic runs
           # in the same docker environment flatpak-builder's compose runs in
@@ -247,10 +254,14 @@ jobs:
               done
             '
 
-      - name: Upload Linux packages
+      # One artifact per matrix entry. dist/ on a fresh runner only contains
+      # the file(s) THIS entry built, so the broad glob is fine: it picks up
+      # mdv_*.deb on the deb entry, mdv-*.rpm on rpm, etc. The release job's
+      # download-artifact step uses merge-multiple to coalesce them.
+      - name: Upload ${{ matrix.format }}
         uses: actions/upload-artifact@v7
         with:
-          name: linux-packages
+          name: linux-${{ matrix.format }}
           path: |
             dist/*.deb
             dist/*.rpm

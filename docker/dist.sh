@@ -1,9 +1,18 @@
 #!/usr/bin/env bash
 #
-# dist.sh — build EVERY Linux artifact (deb, rpm, AppImage, Flatpak) inside the
-# pinned Fedora container (docker/Dockerfile). One image, one command, all
-# formats — so a release is reproducible and CI is trivial: just run this.
-# Wrapped by `make linux`.
+# dist.sh — build Linux artifact(s) (deb, rpm, AppImage, Flatpak) inside the
+# pinned Fedora container (docker/Dockerfile). Wrapped by `make linux`.
+#
+# Usage:
+#   dist.sh             # all four formats (default; what `make linux` runs)
+#   dist.sh deb         # only the .deb
+#   dist.sh rpm         # only the .rpm
+#   dist.sh appimage    # only the .AppImage
+#   dist.sh flatpak     # only the .flatpak
+#
+# The per-format invocation is what the CI workflow uses so it can matrix the
+# four builds over their own runners in parallel rather than chain them in one
+# container.
 #
 # Docker-flavoured on purpose: Docker is the most widely available engine, and
 # Docker Desktop runs Linux containers on Windows + macOS — so a dev on ANY OS
@@ -27,12 +36,18 @@ cd "$REPO"
 DOCKER="${DOCKER:-docker}"            # override to point at a specific docker CLI
 IMAGE="mdv-build"
 FLATPAK_CACHE="${FLATPAK_CACHE:-$HOME/.cache/mdv-flatpak}"
+FORMAT="${1:-all}"
+
+case "$FORMAT" in
+  all|deb|rpm|appimage|flatpak) ;;
+  *) echo "unknown format: $FORMAT (expected: all | deb | rpm | appimage | flatpak)" >&2; exit 2 ;;
+esac
 
 echo "==> build image: $IMAGE"
 "$DOCKER" build -t "$IMAGE" docker/
 
 mkdir -p "$FLATPAK_CACHE"
-echo "==> build deb + rpm + AppImage + Flatpak in $IMAGE (as uid $(id -u))"
+echo "==> build $FORMAT in $IMAGE (as uid $(id -u))"
 # --platform=linux/amd64: run as x86_64 regardless of host (no-op on x86_64,
 # emulated on arm64) — matches the pinned-x86_64 image + toolchain above.
 "$DOCKER" run --rm --platform=linux/amd64 \
@@ -42,6 +57,7 @@ echo "==> build deb + rpm + AppImage + Flatpak in $IMAGE (as uid $(id -u))"
   -v /etc/passwd:/etc/passwd:ro \
   -e HOME=/tmp/fphome -e XDG_RUNTIME_DIR=/tmp/xdg \
   -v "$FLATPAK_CACHE":/tmp/fphome/.local/share/flatpak \
+  -e FORMAT="$FORMAT" \
   "$IMAGE" bash -euc '
     mkdir -p /tmp/fphome /tmp/xdg && chmod 700 /tmp/xdg
 
@@ -51,7 +67,9 @@ echo "==> build deb + rpm + AppImage + Flatpak in $IMAGE (as uid $(id -u))"
     # not the args that triggered it; this wrapper logs argv to stderr before
     # delegating to the real binary. /tmp/bin is writable as the unprivileged
     # container user; prepending it to PATH wins over /usr/bin/appstreamcli.
-    # Remove this block once flatpak-builders compose call is understood.
+    # Only the flatpak path actually invokes appstreamcli, so the wrapper is a
+    # no-op for the other formats — installing unconditionally keeps the script
+    # simple. Remove this block once flatpak-builders compose call is understood.
     mkdir -p /tmp/bin
     cat > /tmp/bin/appstreamcli <<"WRAPPER_EOF"
 #!/bin/bash
@@ -72,8 +90,19 @@ WRAPPER_EOF
     export PATH=/tmp/bin:$PATH
 
     flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-    make deb rpm appimage RELEASE_DIR=/tmp/build
-    make flatpak
+
+    case "$FORMAT" in
+      all)
+        make deb rpm appimage RELEASE_DIR=/tmp/build
+        make flatpak
+        ;;
+      deb|rpm|appimage)
+        make "$FORMAT" RELEASE_DIR=/tmp/build
+        ;;
+      flatpak)
+        make flatpak
+        ;;
+    esac
   '
 echo "==> artifacts in dist/:"
-ls -1 dist/*.deb dist/*.rpm dist/*.AppImage dist/*.flatpak 2>/dev/null
+ls -1 dist/*.deb dist/*.rpm dist/*.AppImage dist/*.flatpak 2>/dev/null || true
