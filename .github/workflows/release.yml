@@ -1,0 +1,129 @@
+# CD for mdv: build the Windows installer and all four Linux artifacts
+# (deb, rpm, AppImage, Flatpak), then publish them to a GitHub Release.
+#
+# Triggers:
+#   - push of a `v*` tag (e.g. `v2.0.0`) — builds + cuts a Release
+#   - workflow_dispatch — builds only, useful for verifying the pipeline
+#
+# Both jobs lean on the same `make` targets that work locally
+# (DEVELOPMENT.md), so this workflow can't drift from the documented build:
+#   Windows: `make windows`   → dist/mdv-<version>-win64.exe   (NSIS)
+#   Linux:   `make linux`     → dist/*.deb .rpm .AppImage .flatpak
+#                               (built inside the pinned Fedora image at
+#                                docker/Dockerfile, via docker/dist.sh)
+
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Default permissions for build jobs; the release job opts up to `contents: write`.
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: Windows installer
+    runs-on: windows-latest
+    defaults:
+      run:
+        # The Makefile is GNU-make + sh; use bash so it Just Works on Windows.
+        # Git for Windows (pre-installed on the runner) provides bash, sed, and
+        # the Perl that KSyntaxHighlighting needs at configure time.
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+
+      # Qt 6 + a matching MinGW (the toolchain DEVELOPMENT.md targets first).
+      # `cache: true` keeps the ~2 GB Qt download out of the critical path on
+      # subsequent runs.
+      - name: Install Qt 6 + MinGW
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.0'
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          tools: 'tools_mingw1310'
+          cache: true
+
+      # install-qt-action adds Qt's bin to PATH, but not the bundled MinGW's;
+      # CMake needs g++ on PATH for the Ninja generator.
+      - name: Add MinGW to PATH
+        run: echo "$IQTA_TOOLS/mingw1310_64/bin" >> "$GITHUB_PATH"
+
+      # NSIS for the installer; GNU make for the Makefile wrapper. Chocolatey
+      # is preinstalled on windows-latest.
+      - name: Install NSIS + make
+        run: choco install -y --no-progress nsis make
+
+      - name: Build NSIS installer
+        run: make windows
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer
+          path: dist/*.exe
+          if-no-files-found: error
+
+  linux:
+    name: Linux packages
+    runs-on: ubuntu-latest
+    steps:
+      # fetch-depth: 0 so CMake's AppStream metainfo step can derive the
+      # release date from `git log` (CMakeLists.txt notes this falls back to
+      # the build date if git history is absent).
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # The first `make linux` pulls org.kde.Platform/Sdk 6.9 (~1.5 GB).
+      # docker/dist.sh stores this under ~/.cache/mdv-flatpak; persist it across
+      # runs so only the very first build pays for the download.
+      - name: Cache Flatpak KDE runtime
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/mdv-flatpak
+          key: mdv-flatpak-kde-6.9-${{ runner.os }}
+
+      # Builds inside the pinned Fedora container (docker/Dockerfile), so the
+      # runner only needs Docker — which ubuntu-latest already has.
+      - name: Build deb / rpm / AppImage / Flatpak
+        run: make linux
+
+      - name: Upload Linux packages
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux-packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.AppImage
+            dist/*.flatpak
+          if-no-files-found: error
+
+  release:
+    name: GitHub Release
+    # Only cut a Release for tag pushes; workflow_dispatch is build-only.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
