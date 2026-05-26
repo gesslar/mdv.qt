@@ -53,13 +53,22 @@ MDV_ARCH    = $(shell flatpak --default-arch 2>/dev/null || uname -m)
 # --disable-rofiles-fuse skips the inter-stage read-only FUSE overlay (a build-
 # cache optimization): a minor speed cost, but it lets the build run inside a
 # container, which can't mount FUSE. Harmless on the host.
+#
+# --runtime-repo stamps the flathub URL into the bundle. A single-file .flatpak
+# carries ONLY the app, never its runtime — so on install, flatpak needs to know
+# where to fetch org.kde.Platform from. Without this, `flatpak install foo.flatpak`
+# dies with "requires the runtime org.kde.Platform/.../6.9 which was not found"
+# on any machine (or scope) that doesn't already have that exact runtime. With it,
+# flatpak offers to pull the runtime from flathub automatically.
 flatpak:
 	flatpak-builder --force-clean --user --install-deps-from=flathub \
 	  --disable-rofiles-fuse \
 	  --state-dir=$(DIST_DIR)/.flatpak-builder \
 	  --repo=$(DIST_DIR)/flatpak-repo \
 	  $(DIST_DIR)/flatpak-build dev.gesslar.mdv.yml
-	flatpak build-bundle $(DIST_DIR)/flatpak-repo \
+	flatpak build-bundle \
+	  --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo \
+	  $(DIST_DIR)/flatpak-repo \
 	  $(DIST_DIR)/mdv-$(MDV_VERSION)-$(MDV_ARCH).flatpak dev.gesslar.mdv
 
 # AppImage: a patchelf-free single-file bundle. scripts/appimage.sh hand-rolls
