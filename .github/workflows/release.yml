@@ -173,11 +173,25 @@ jobs:
       # hypothesis. No continue-on-error: a failure here fails the job, which
       # is what we want while iterating on the cause.
       - name: Diagnose appstreamcli compose
+        if: always()
         run: |
+          # Mirror docker/dist.sh's invocation exactly so the diagnostic runs
+          # in the same docker environment flatpak-builder's compose runs in
+          # (privileged + /dev/fuse + seccomp=unconfined + matching uid +
+          # HOME/XDG_RUNTIME_DIR + /etc/passwd mount). Without this our
+          # diagnostic was running in an unprivileged container, so bwrap
+          # failed and glycin fell back to no-sandbox — a code path
+          # flatpak-builder's call presumably never exercises.
           docker run --rm --platform=linux/amd64 \
+            --user "$(id -u):$(id -g)" --security-opt label=disable \
+            --privileged --device /dev/fuse --security-opt seccomp=unconfined \
             -v "$PWD":/work -w /work \
+            -v /etc/passwd:/etc/passwd:ro \
+            -e HOME=/tmp/fphome -e XDG_RUNTIME_DIR=/tmp/xdg \
             mdv-build \
             bash -euxc '
+              mkdir -p /tmp/fphome /tmp/xdg && chmod 700 /tmp/xdg
+
               echo "=== appstreamcli version ==="
               appstreamcli --version
 

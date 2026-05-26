@@ -44,6 +44,33 @@ echo "==> build deb + rpm + AppImage + Flatpak in $IMAGE (as uid $(id -u))"
   -v "$FLATPAK_CACHE":/tmp/fphome/.local/share/flatpak \
   "$IMAGE" bash -euc '
     mkdir -p /tmp/fphome /tmp/xdg && chmod 700 /tmp/xdg
+
+    # DIAGNOSTIC (temporary): intercept calls to appstreamcli so we can see
+    # the exact arguments flatpak-builder passes during its compose step.
+    # The failing call only prints its post-failure summary in the build log,
+    # not the args that triggered it; this wrapper logs argv to stderr before
+    # delegating to the real binary. /tmp/bin is writable as the unprivileged
+    # container user; prepending it to PATH wins over /usr/bin/appstreamcli.
+    # Remove this block once flatpak-builders compose call is understood.
+    mkdir -p /tmp/bin
+    cat > /tmp/bin/appstreamcli <<"WRAPPER_EOF"
+#!/bin/bash
+{
+  printf "================================================================\n"
+  printf "APPSTREAMCLI WRAPPER intercepted call with %d arguments:\n" "$#"
+  printf "  argv[0]: %q\n" "$0"
+  i=1
+  for arg in "$@"; do
+    printf "  argv[%d]: %q\n" "$i" "$arg"
+    i=$((i+1))
+  done
+  printf "================================================================\n"
+} >&2
+exec /usr/bin/appstreamcli "$@"
+WRAPPER_EOF
+    chmod +x /tmp/bin/appstreamcli
+    export PATH=/tmp/bin:$PATH
+
     flatpak --user remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
     make deb rpm appimage RELEASE_DIR=/tmp/build
     make flatpak
