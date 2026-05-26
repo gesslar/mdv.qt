@@ -96,10 +96,25 @@ echo "==> build $FORMAT in $IMAGE (as uid $(id -u))"
     printf "  argv[%d]: %q\n" "$i" "$arg"
     i=$((i+1))
   done
-  printf "(stripping XDG_RUNTIME_DIR so glycin does not forward it into bwrap)\n"
+  printf "(parent XDG_RUNTIME_DIR before unset: %q)\n" "${XDG_RUNTIME_DIR-(unset)}"
+  printf "(verifying env -u actually unsets it for the child:)\n"
+  env -u XDG_RUNTIME_DIR bash -c 'printf "  child sees XDG_RUNTIME_DIR=%q\n" "${XDG_RUNTIME_DIR-(unset)}"'
+  printf "(injecting --verbose after compose so we capture the bwrap spawn)\n"
   printf "================================================================\n"
 } >&2
-exec env -u XDG_RUNTIME_DIR /usr/bin/appstreamcli "$@"
+
+# Inject --verbose right after the "compose" subcommand so glycin's bwrap
+# command lands in stderr and we can confirm whether the second
+# "--setenv XDG_RUNTIME_DIR ..." is gone after the env -u strip.
+new_args=()
+for arg in "$@"; do
+  new_args+=("$arg")
+  if [[ "$arg" == "compose" ]]; then
+    new_args+=("--verbose")
+  fi
+done
+
+exec env -u XDG_RUNTIME_DIR /usr/bin/appstreamcli "${new_args[@]}"
 WRAPPER_EOF
     chmod +x /tmp/bin/appstreamcli
     export PATH=/tmp/bin:$PATH
