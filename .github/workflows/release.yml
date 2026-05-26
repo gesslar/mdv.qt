@@ -28,6 +28,11 @@ name: release
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Build + diagnose only — skip the tag and release jobs even on a version bump. Use to validate the pipeline without committing to a release.'
+        type: boolean
+        default: false
 
 # Default permissions for build jobs; tag + release jobs opt up to write.
 permissions:
@@ -157,35 +162,64 @@ jobs:
       - name: Build deb / rpm / AppImage / Flatpak
         run: make linux
 
-      # DIAGNOSTIC (temporary): re-run `appstreamcli compose` manually with
-      # --verbose against the tree flatpak-builder already staged at
-      # dist/flatpak-build/files. The same compose call inside flatpak-builder
-      # fails on this runner with a bare `E: file-read-error` but works on
-      # local WSL2 against the same pinned Fedora image — running it ourselves
-      # with verbose output should print the actual filename behind the error.
-      # Marked continue-on-error so the (expected) failure doesn't redden CI;
-      # remove this step once we've identified the cause.
+      # DIAGNOSTIC (temporary): reproduce the appstreamcli compose call that
+      # fails inside flatpak-builder, but with --verbose, --media-baseurl
+      # (which re-enables screenshot fetching — the previous run showed
+      # appstreamcli was disabling that without it), and a proper /app symlink
+      # so the unit lookup resolves to the staged tree instead of hitting
+      # unit-read-error. Prefixed with a curl probe from inside the same
+      # container, which is the cheapest way to confirm or rule out the
+      # "screenshot URLs are unreachable from inside the runner's container"
+      # hypothesis. No continue-on-error: a failure here fails the job, which
+      # is what we want while iterating on the cause.
       - name: Diagnose appstreamcli compose
-        if: always()
-        continue-on-error: true
         run: |
           docker run --rm --platform=linux/amd64 \
             -v "$PWD":/work -w /work \
             mdv-build \
             bash -euxc '
+              echo "=== appstreamcli version ==="
               appstreamcli --version
+
+              echo "=== curl probe to the screenshot URLs (from inside the build container) ==="
+              for url in \
+                https://raw.githubusercontent.com/gesslar/mdv.qt/main/screenshots/syntax-highlighting.png \
+                https://raw.githubusercontent.com/gesslar/mdv.qt/main/screenshots/elements.png \
+                https://raw.githubusercontent.com/gesslar/mdv.qt/main/screenshots/preferences.png \
+                https://raw.githubusercontent.com/gesslar/mdv.qt/main/screenshots/empty.png \
+              ; do
+                echo "--- $url ---"
+                curl -fSsI -w "HTTP=%{http_code} time=%{time_total}s size_download=%{size_download}\n" -o /dev/null "$url" \
+                  || echo "CURL FAILED with exit $?"
+              done
+
+              echo "=== appstreamcli compose --help (for flag reference) ==="
+              appstreamcli compose --help || true
+
               echo "=== metainfo as installed into the flatpak tree ==="
               cat dist/flatpak-build/files/share/metainfo/dev.gesslar.mdv.metainfo.xml
+
               echo "=== staged tree contents (share/) ==="
               find dist/flatpak-build/files/share -maxdepth 4 -type f | sort
+
               echo "=== reproducing the failing compose with --verbose ==="
+              # Build a fake root where /app -> staged tree, so appstreamcli`s
+              # unit lookup (<root>/<prefix>/share) resolves to the actual
+              # metainfo at dist/flatpak-build/files/share/.
+              mkdir -p /tmp/diag-root
+              ln -sfn /work/dist/flatpak-build/files /tmp/diag-root/app
               mkdir -p /tmp/compose-result /tmp/compose-data
+
+              # --media-baseurl re-enables screenshot fetching (the previous
+              # diagnostic`s verbose log showed the storage was being disabled
+              # without it, which would mask any URL-fetch failure).
               appstreamcli compose --verbose \
                 --prefix=/app \
                 --result-root=/tmp/compose-result \
                 --data-dir=/tmp/compose-data \
+                --media-baseurl=https://example.com/media \
                 --components=dev.gesslar.mdv,dev.gesslar.mdv.desktop \
-                dist/flatpak-build/files
+                /tmp/diag-root
             '
 
       - name: Upload Linux packages
@@ -206,7 +240,7 @@ jobs:
   tag:
     name: Create tag
     needs: [determine-version, windows, linux]
-    if: ${{ needs.determine-version.outputs.version != '🙅🏻‍♂️' }}
+    if: ${{ needs.determine-version.outputs.version != '🙅🏻‍♂️' && !inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -244,7 +278,7 @@ jobs:
   release:
     name: GitHub Release
     needs: [tag]
-    if: ${{ needs.tag.outputs.new_tag != '🙅🏻‍♂️' }}
+    if: ${{ needs.tag.outputs.new_tag != '🙅🏻‍♂️' && !inputs.dry_run }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
