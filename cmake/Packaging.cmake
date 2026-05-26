@@ -41,7 +41,12 @@ if(UNIX AND NOT APPLE)
         "libqt6widgets6 (>= 6.5), libmd4c0, libkf6syntaxhighlighting6")
     set(CPACK_DEBIAN_PACKAGE_SECTION text)
     set(CPACK_DEBIAN_PACKAGE_PRIORITY optional)
-    set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+    # Overridden from DEB-DEFAULT (mdv_<v>_amd64.deb) so every artifact reads
+    # mdv-<v>-x86_64.<ext>, matching the AppImage/flatpak. FILENAME only — the
+    # embedded control Architecture stays "amd64" (Debian-correct), and dpkg/apt
+    # install off that metadata, not the name. The build is pinned x86_64 (docker/),
+    # so the literal arch token is safe.
+    set(CPACK_DEBIAN_FILE_NAME "mdv-${CPACK_PACKAGE_VERSION}-x86_64.deb")
 
     # --- RPM (.rpm) -----------------------------------------------------------
     #
@@ -51,7 +56,10 @@ if(UNIX AND NOT APPLE)
     set(CPACK_RPM_PACKAGE_LICENSE "0BSD")
     set(CPACK_RPM_PACKAGE_GROUP "Applications/Text")
     set(CPACK_RPM_PACKAGE_URL "${CPACK_PACKAGE_HOMEPAGE_URL}")
-    set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+    # Overridden from RPM-DEFAULT (mdv-<v>-1.x86_64.rpm) to drop the release field
+    # from the FILENAME and match the shared mdv-<v>-x86_64.<ext> shape. The NVR
+    # release ("1") still lives in the embedded metadata, untouched.
+    set(CPACK_RPM_FILE_NAME "mdv-${CPACK_PACKAGE_VERSION}-x86_64.rpm")
     # CPackRPM doesn't fall back to CPACK_PACKAGE_DESCRIPTION (the DEB generator
     # does), so without this the %description is CPack's "created using CPack"
     # boilerplate. Point it at the same text the .deb uses.
