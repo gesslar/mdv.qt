@@ -223,7 +223,7 @@ jobs:
               echo "=== staged tree contents (share/) ==="
               find dist/flatpak-build/files/share -maxdepth 4 -type f | sort
 
-              echo "=== reproducing flatpak-builder's exact call, with --verbose + --hints-dir ==="
+              echo "=== reproducing the flatpak-builder invocation, with --verbose + --hints-dir ==="
               # Args copied verbatim from the APPSTREAMCLI WRAPPER log captured
               # during the (failing) make linux step. The only additions:
               # --verbose (so we see what appstreamcli is doing internally) and
