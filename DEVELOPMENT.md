@@ -66,7 +66,7 @@ Install the official **[Qt online installer](https://www.qt.io/download-qt-insta
 Two extra prereqs that the Qt installer doesn't provide:
 
 - **Git for Windows** — `git` is needed at *configure* time (CMake clones extra-cmake-modules from invent.kde.org) and Git for Windows also ships a Perl at `C:\Program Files\Git\usr\bin\perl.exe`, which is what KSyntaxHighlighting needs to generate its data tables. CMakeLists auto-detects this Perl when one isn't already on `PATH`. If you'd rather use Strawberry Perl: `choco install strawberryperl`.
-- **NSIS 3.x** (`makensis.exe`) — only needed for `make exe` (building the installer). `choco install nsis`, or download from <https://nsis.sourceforge.io/> and add `NSIS\Bin` to `PATH`.
+- **NSIS 3.x** (`makensis.exe`) — only needed for `make windows` (building the installer). `choco install nsis`, or download from <https://nsis.sourceforge.io/> and add `NSIS\Bin` to `PATH`.
 
 Neither **md4c** nor **KSyntaxHighlighting** has a Windows package, so CMake fetches and builds both in-tree on Windows (along with extra-cmake-modules, which KSH needs). Nothing extra to install for them — `cmake -S . -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release` and `cmake --build build-release` is enough on a clean machine that has Qt + a compiler + Git.
 
@@ -183,17 +183,42 @@ AppImage list, kept byte-identical and diffable) plus `scripts/excludelist.mdv`
 viewer never needs). `scripts/appdir-lint.sh` (also straight from the AppImage
 project) validates the AppDir against AppImageHub's rules.
 
-> The AppImage is built on the host for now, so its glibc floor is the build
-> host's. A reproducible Fedora build container — building the Flatpak too — is
-> a planned follow-up.
+### All formats in a container (`make linux`)
+
+`make linux` builds **every** format above — `.deb`, `.rpm`, `.AppImage`, and
+`.flatpak` — inside a pinned Fedora container (`docker/Dockerfile`), so a release
+is reproducible and CI is trivial: one image, one command. The image is the
+toolchain only; your checkout is mounted at run time and the build just calls the
+same `make` targets above, so it can't drift from the documented build.
+
+```bash
+make linux   # → dist/ : the .deb, .rpm, .AppImage and .flatpak, all at once
+```
+
+**Tooling**: Docker — nothing else; the image carries the full toolchain. Docker
+is the most widely available engine, and since Docker Desktop runs Linux
+containers on Windows and macOS, a dev on *any* OS can produce the Linux
+artifacts — a Windows dev builds the native installer (`make windows`) **and** all
+four Linux formats (`make linux`) from one box. `docker/dist.sh` runs the
+container as your uid/gid (`--user`, plus a read-only `/etc/passwd` mount so
+flatpak-builder can resolve the user), so the artifacts are yours, not root.
+flatpak-builder inside a container needs sandbox escape hatches (`--privileged`,
+`/dev/fuse`, `seccomp=unconfined`, `XDG_RUNTIME_DIR`) plus `--disable-rofiles-fuse`;
+the script handles all of it and caches the `org.kde.Platform` runtime under
+`~/.cache/mdv-flatpak`, so the ~1.5 GB pull happens only on the first run.
+
+> A Fedora base has the same recent glibc + RELR libs as the host, so the
+> AppImage's glibc floor is unchanged — the win is reproducibility/CI, not
+> old-distro portability. The AppImage stays patchelf-free in the container too.
 
 macOS will get its own `Makefile.dist.macos` include when that build path is
 ready.
 
 ## Packaging (Windows)
 
-The Windows installer is an NSIS `.exe` built with CPack from the same
-`install()` rules `cmake --install` uses (the binary, the icon, and a
+The Windows installer is an NSIS `.exe` built by a custom `makensis` target
+(not CPack — see `cmake/Packaging.cmake`) from the same `install()` rules
+`cmake --install` uses (the binary, the icon, and a
 windeployqt step that pulls in Qt + plugins + translations + the mingw
 runtime DLLs). The target lives in `Makefile.dist.windows` — the top-level
 Makefile pulls in the per-OS dist include for the host automatically.
@@ -201,12 +226,13 @@ Installer metadata (file associations, shortcuts, icons) lives in
 `cmake/Packaging.cmake`.
 
 ```powershell
-make exe     # → dist\mdv-<version>-win64.exe
-make dist    # same (alias, parallel to Linux's `make dist`)
+make windows   # → dist\mdv-<version>-win64.exe
+make dist      # same (alias, parallel to Linux's `make dist`)
 ```
 
-`make exe` builds the release binary first, then runs `cpack -G NSIS`;
-the artifact lands in `dist\`. **Packaging tooling**: NSIS 3.x must be
+`make windows` builds the release binary first, then drives the custom
+`package_nsis` target (`cmake --install` + `makensis`); the artifact lands in
+`dist\`. **Packaging tooling**: NSIS 3.x must be
 installed and `makensis.exe` on `PATH` (see the Windows install section
 above).
 

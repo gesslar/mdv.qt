@@ -5,7 +5,7 @@
 #
 # Driven from the per-host Makefile.dist.* include:
 #     Linux:   make deb / make rpm / make dist
-#     Windows: make exe / make dist  (NSIS)
+#     Windows: make windows / make dist  (NSIS)
 #
 # This file is include()d at the very end of CMakeLists.txt, AFTER the install()
 # rules — CPack snapshots those rules, so whatever `make install` would lay down
@@ -99,7 +99,7 @@ if(WIN32)
         PATH_SUFFIXES Bin)
     if(NOT MAKENSIS_EXECUTABLE)
         message(WARNING
-            "makensis not found — `make exe` will fail. Install NSIS 3.x "
+            "makensis not found — `make windows` will fail. Install NSIS 3.x "
             "(choco install nsis) and ensure NSIS\\Bin is on PATH.")
     endif()
 
