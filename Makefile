@@ -80,7 +80,7 @@ run: build
 #      tools are missing (and on macOS, where no .desktop is installed at all).
 install: release
 	cmake --install $(RELEASE_DIR) --prefix $(PREFIX)
-	-test -f "$(PREFIX)/share/applications/mdv.desktop" && sed -i 's|^Exec=mdv |Exec=$(PREFIX)/bin/mdv |' "$(PREFIX)/share/applications/mdv.desktop"
+	-test -f "$(PREFIX)/share/applications/dev.gesslar.mdv.desktop" && sed -i 's|^Exec=mdv |Exec=$(PREFIX)/bin/mdv |' "$(PREFIX)/share/applications/dev.gesslar.mdv.desktop"
 	-command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$(PREFIX)/share/applications"
 	-command -v kbuildsycoca6 >/dev/null 2>&1 && kbuildsycoca6
 

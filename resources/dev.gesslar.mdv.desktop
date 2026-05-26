@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=mdv
+GenericName=Markdown Viewer
+Comment=An offline Markdown viewer.
+Exec=mdv %F
+Icon=dev.gesslar.mdv
+Terminal=false
+Categories=Office;
+MimeType=text/markdown;
+# The compositor matches the running window to this launcher to show Icon= in
+# the dock/taskbar. On Wayland it matches the window's app_id — which Qt sets
+# from setDesktopFileName("dev.gesslar.mdv") (src/main.cpp), i.e. THIS file's
+# basename. StartupWMClass is the X11 fallback (the window's WM_CLASS); verify
+# on X11 if you run there.
+StartupWMClass=dev.gesslar.mdv
+StartupNotify=true

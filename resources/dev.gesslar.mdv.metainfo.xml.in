@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>dev.gesslar.mdv</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>0BSD</project_license>
+  <name>mdv</name>
+  <summary>A fast, minimal desktop Markdown viewer</summary>
+
+  <description>
+    <p>
+      mdv is a fast, offline desktop viewer for Markdown files, built with Qt 6.
+      It renders CommonMark and GitHub-flavored Markdown with syntax-highlighted
+      code blocks and themeable, swappable styling.
+    </p>
+    <ul>
+      <li>CommonMark + GitHub-flavored Markdown (tables, task lists, strikethrough)</li>
+      <li>Automatic syntax highlighting for fenced code blocks</li>
+      <li>Swappable content themes for colors and spacing</li>
+      <li>Tabs and split views; drag tabs between groups</li>
+      <li>Drag-and-drop to open; live reload when a file changes on disk</li>
+      <li>Recent files, reopen-closed, and Ctrl+scroll zoom</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">dev.gesslar.mdv.desktop</launchable>
+
+  <url type="homepage">https://github.com/gesslar/mdv.qt</url>
+  <url type="bugtracker">https://github.com/gesslar/mdv.qt/issues</url>
+
+  <developer id="dev.gesslar">
+    <name>gesslar</name>
+  </developer>
+
+  <content_rating type="oars-1.1"/>
+
+  <categories>
+    <category>Office</category>
+  </categories>
+
+  <releases>
+    <release version="@PROJECT_VERSION@" date="@MDV_RELEASE_DATE@"/>
+  </releases>
+
+  <!-- URLs resolve once screenshots/ lands on the default branch; pin to a
+       release tag instead of main before submitting to Flathub. -->
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/gesslar/mdv.qt/main/screenshots/syntax-highlighting.png</image>
+      <caption>Syntax-highlighted code blocks, colored from the active theme</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/gesslar/mdv.qt/main/screenshots/elements.png</image>
+      <caption>Tables, blockquotes, and inline versus block code</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/gesslar/mdv.qt/main/screenshots/preferences.png</image>
+      <caption>Choosing the content theme and prose/monospace fonts</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/gesslar/mdv.qt/main/screenshots/empty.png</image>
+      <caption>A fresh, empty window</caption>
+    </screenshot>
+  </screenshots>
+</component>
