@@ -132,6 +132,35 @@ soname packages, which are the wrong names for a `.deb`. Keep it in step with
 the link line if you add a library. RPM `Requires:` are auto-detected by
 `rpmbuild`.
 
+### Flatpak
+
+A single-file `.flatpak` is built with `flatpak-builder` against the KDE runtime
+(`org.kde.Platform` 6.9), which already ships Qt 6 and KSyntaxHighlighting — so
+only md4c is built alongside mdv. The manifest `dev.gesslar.mdv.yml` builds
+straight from this checkout (no pushed tag required).
+
+```bash
+make flatpak   # → dist/mdv-<version>-<arch>.flatpak
+```
+
+**Tooling** (packaging dep, not a build dep): `flatpak` + `flatpak-builder`, with
+the flathub remote configured:
+
+- Fedora: `sudo dnf install flatpak flatpak-builder`
+- Debian/Ubuntu: `sudo apt install flatpak flatpak-builder`
+- `flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo`
+
+The first `make flatpak` pulls `org.kde.Platform` / `org.kde.Sdk` 6.9 (a large
+one-time download). Install and run the bundle with:
+
+```bash
+flatpak install --user dist/mdv-*.flatpak   # e.g. mdv-2.0.0-x86_64.flatpak
+flatpak run dev.gesslar.mdv                 # run/install are by app-id, not filename
+```
+
+For a Flathub submission, repoint the `mdv` module source from this local
+checkout to a pinned remote (url + tag + commit).
+
 macOS will get its own `Makefile.dist.macos` include when that build path is
 ready.
 

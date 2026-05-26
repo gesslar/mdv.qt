@@ -1,0 +1,68 @@
+# Flatpak manifest for mdv. Build + bundle with `make flatpak` (a thin wrapper
+# around flatpak-builder — see Makefile.dist.linux / DEVELOPMENT.md).
+#
+# Self-contained: the `mdv` module builds straight from THIS repo's working tree
+# (type: dir, path: .) — no presumed pushed tag or sibling directory. The KDE
+# runtime already ships Qt 6 and KSyntaxHighlighting (KF6), so the only thing we
+# build alongside mdv is md4c, the one genuinely-external dependency.
+#
+# For a Flathub submission, swap the mdv source to a pinned remote
+# (type: git with url + tag + commit) — Flathub builds from a published ref,
+# not a local checkout.
+id: dev.gesslar.mdv
+runtime: org.kde.Platform
+runtime-version: '6.9'
+sdk: org.kde.Sdk
+command: mdv
+
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Read-only access to the host: a file opened via CLI args or drag-and-drop
+  # resolves from anywhere on disk. A viewer never writes, so :ro is the whole
+  # story. (Flathub may prefer portal-only; tighten here if so.)
+  - --filesystem=host:ro
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - /lib/cmake
+  - '*.a'
+
+modules:
+  # Third-party Markdown parser — the one external source, pinned upstream.
+  - name: md4c
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+    sources:
+      - type: git
+        url: https://github.com/mity/md4c.git
+        tag: release-0.5.3
+        # Pin the commit too — a tag is mutable; this locks the source to a SHA.
+        commit: 472c417005c2c71b8617de4f7b8d6b30411d78f4
+    cleanup:
+      - /bin   # the md2html demo CLI; we only link libmd4c-html
+
+  # mdv itself, from this repo. Our install() rules already lay down the binary,
+  # the .desktop, the AppStream metainfo, and the icon under /app/share — so
+  # there's nothing extra to hand-install here.
+  - name: mdv
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+    sources:
+      - type: dir
+        path: .
+        # .git is deliberately NOT skipped: the build derives the AppStream
+        # release date from `git log` (see CMakeLists.txt), so the sandbox
+        # metainfo carries the same commit date as the deb/rpm build instead of
+        # falling back to a build timestamp.
+        skip:
+          - build
+          - build-release
+          - dist
+          - .flatpak-builder

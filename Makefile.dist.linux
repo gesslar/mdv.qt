@@ -2,17 +2,19 @@
 # on Linux. Produces .deb and .rpm via CPack against the release build; the
 # package metadata (deps, license, sections) lives in cmake/Packaging.cmake.
 #
-#     make deb    → dist/mdv_<version>_<arch>.deb
-#     make rpm    → dist/mdv-<version>-1.<arch>.rpm
-#     make dist   → both
+#     make deb     → dist/mdv_<version>_<arch>.deb
+#     make rpm     → dist/mdv-<version>-1.<arch>.rpm
+#     make dist    → both
+#     make flatpak → dist/mdv-<version>-<arch>.flatpak (KDE runtime; pulls the SDK once)
 #
-# A .deb needs dpkg-deb on PATH; a .rpm needs rpmbuild. See DEVELOPMENT.md for
-# how to install them (they're not build deps — only packaging deps).
+# A .deb needs dpkg-deb on PATH; a .rpm needs rpmbuild; a .flatpak needs flatpak
+# + flatpak-builder. See DEVELOPMENT.md for how to install them (they're not
+# build deps — only packaging deps).
 #
 # DIST_DIR (the output directory) comes from the top-level Makefile, alongside
 # DEV_DIR / RELEASE_DIR, so `make distclean` there can sweep it too.
 
-.PHONY: dist deb rpm
+.PHONY: dist deb rpm flatpak
 
 # Every Linux package format.
 dist: deb rpm
@@ -25,3 +27,28 @@ deb: release
 
 rpm: release
 	cpack --config $(RELEASE_DIR)/CPackConfig.cmake -G RPM -B $(DIST_DIR)
+
+# The bundle filename carries version + arch (like the .deb/.rpm) so a download
+# is identifiable instead of a bare app-id. Version comes from project(VERSION)
+# in CMakeLists.txt — the single source; arch from flatpak. (The app-id
+# "dev.gesslar.mdv" is the identity INSIDE the bundle; the filename is for humans.)
+# Lazy `=` (not `:=`): these shell out, so deferring expansion keeps a plain
+# `make build` (and CI, and flatpak-less hosts) from forking sed + flatpak on
+# every run — they fire only when the flatpak target below expands them. Each is
+# referenced once, so there's no re-eval cost.
+MDV_VERSION = $(shell sed -nE 's/^[[:space:]]*VERSION[[:space:]]+([0-9.]+).*/\1/p' CMakeLists.txt | head -1)
+MDV_ARCH    = $(shell flatpak --default-arch 2>/dev/null || uname -m)
+
+# Flatpak: build mdv against the KDE runtime via flatpak-builder, then bundle a
+# single-file dist/mdv-<version>-<arch>.flatpak. --install-deps-from=flathub
+# pulls the runtime + SDK on first run (a large one-time download). Independent
+# of the CPack path above — flatpak-builder builds its own copy of mdv in the
+# sandbox from dev.gesslar.mdv.yml. Deliberately NOT part of `dist`, so a routine
+# `make dist` doesn't trigger the SDK download. See DEVELOPMENT.md.
+flatpak:
+	flatpak-builder --force-clean --user --install-deps-from=flathub \
+	  --state-dir=$(DIST_DIR)/.flatpak-builder \
+	  --repo=$(DIST_DIR)/flatpak-repo \
+	  $(DIST_DIR)/flatpak-build dev.gesslar.mdv.yml
+	flatpak build-bundle $(DIST_DIR)/flatpak-repo \
+	  $(DIST_DIR)/mdv-$(MDV_VERSION)-$(MDV_ARCH).flatpak dev.gesslar.mdv
