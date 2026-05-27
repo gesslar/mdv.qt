@@ -271,6 +271,10 @@ qt_add_executable(mdv
 # CMake autoselects windres on MinGW / rc.exe on MSVC.
 if(WIN32)
     target_sources(mdv PRIVATE resources/mdv.rc)
+    # dwmapi: DwmSetWindowAttribute for the Win11 immersive-dark / Mica
+    # titlebar opt-in. Ships with the OS since Vista; safe to link
+    # unconditionally on Windows.
+    target_link_libraries(mdv PRIVATE dwmapi)
 endif()
 
 target_link_libraries(mdv PRIVATE Qt6::Widgets ${MD4C} ${KSH})

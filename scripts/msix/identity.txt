@@ -1,0 +1,12 @@
+; Microsoft Store / MSIX identity for mdv. These five fields are fixed for
+; the lifetime of the Store listing — they never change between releases.
+; Kept here so scripts/msix/prepare.ps1 (and any future regenerator) has a
+; single canonical source if the base template ever needs to be rebuilt.
+;
+; Source of truth for *what we publish per release* is scripts/msix/base-template.xml.
+
+PackageName        = gesslar.mdv
+PackageDisplayName = mdv
+PublisherName      = CN=BB7C591A-0B88-4F69-A18A-C880C887039A
+PublisherDisplayName = gesslar
+PackageDescription = A fast and free, minimal desktop Markdown viewer.
