@@ -19,9 +19,56 @@
 #include "EditorGroup.h"
 #include "PreferencesDialog.h"
 
+#ifdef Q_OS_WIN
+  #include <QGuiApplication>
+  #include <QStyleHints>
+  // Older MinGW SDKs predate these names. Values match the Microsoft DWM docs
+  // and are stable across SDK versions, so the fallbacks are safe.
+  #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+    #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+  #endif
+  #ifndef DWMWA_SYSTEMBACKDROP_TYPE
+    #define DWMWA_SYSTEMBACKDROP_TYPE 38
+  #endif
+  #include <windows.h>
+  #include <dwmapi.h>
+#endif
+
 namespace {
 constexpr int kRecentFilesLimit = 10;
 constexpr const char *kRecentFilesKey = "recentFiles";
+
+#ifdef Q_OS_WIN
+// Qt windows on Windows don't opt into the Win10/11 dark-mode titlebar by
+// default — the system frame stays in the legacy light style even when the
+// rest of the desktop is dark. Opt in via DWM so the titlebar tracks the
+// active Qt color scheme. Older Win10 builds return failure and the frame
+// keeps its prior appearance, so no fallback handling is needed.
+//
+// Note: users who've enabled "Show accent color on title bars and window
+// borders" in Personalization will still see their accent color here — that
+// setting overrides immersive dark mode for traditional Win32 chrome and
+// can't be bypassed without drawing a custom titlebar.
+void applyWindowsChrome(QWidget *w) {
+  const HWND hwnd = reinterpret_cast<HWND>(w->winId());
+  if(!hwnd) return;
+
+  const BOOL dark =
+      QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark
+          ? TRUE
+          : FALSE;
+  DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark,
+                        sizeof(dark));
+
+  // DWMSBT_MAINWINDOW (Mica). Pre-22H2 Win11 / Win10 return failure and the
+  // frame keeps its solid background. Without making the client area
+  // transparent the effect is confined to the titlebar/border, but that
+  // alone is a noticeable upgrade over the flat solid color.
+  const int backdrop = 2;
+  DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
+                        sizeof(backdrop));
+}
+#endif
 }  // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
@@ -148,6 +195,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   // the menu closes.
   m_statusLabel = new QLabel(tr("No file open."), this);
   statusBar()->addWidget(m_statusLabel);
+
+#ifdef Q_OS_WIN
+  // winId() forces native HWND creation so the DWM calls have something to
+  // target. Reapply on system theme switches so the titlebar tracks live.
+  (void)winId();
+  applyWindowsChrome(this);
+  connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
+          [this](Qt::ColorScheme) { applyWindowsChrome(this); });
+#endif
 }
 
 MainWindow::~MainWindow() = default;
