@@ -22,8 +22,14 @@
 #ifdef Q_OS_WIN
   #include <QGuiApplication>
   #include <QStyleHints>
-  // Older MinGW SDKs predate these names. Values match the Microsoft DWM docs
-  // and are stable across SDK versions, so the fallbacks are safe.
+  #include <windows.h>
+  #include <dwmapi.h>
+  // Fallbacks for older MinGW SDKs that predate these names. Placed AFTER
+  // the SDK headers so that when a future SDK ships the names — as a #define
+  // or, more likely, as DWMWINDOWATTRIBUTE / DWM_SYSTEMBACKDROP_TYPE enum
+  // entries — the SDK version wins. (A #define ahead of the SDK header would
+  // textually replace the enum entry's identifier and break the enum.)
+  // Values match the documented Microsoft DWM constants.
   #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
     #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
   #endif
@@ -33,8 +39,6 @@
   #ifndef DWMSBT_MAINWINDOW
     #define DWMSBT_MAINWINDOW 2
   #endif
-  #include <windows.h>
-  #include <dwmapi.h>
 #endif
 
 namespace {
