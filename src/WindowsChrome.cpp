@@ -13,6 +13,9 @@
   #ifndef DWMWA_SYSTEMBACKDROP_TYPE
     #define DWMWA_SYSTEMBACKDROP_TYPE 38
   #endif
+  #ifndef DWMSBT_MAINWINDOW
+    #define DWMSBT_MAINWINDOW 2
+  #endif
   #include <windows.h>
   #include <dwmapi.h>
 #endif
@@ -31,7 +34,7 @@ void applyWindowsChrome(QWidget *w) {
 
   // DWMSBT_MAINWINDOW (Mica). Pre-22H2 Win11 / Win10 return failure and the
   // frame keeps its solid background.
-  const int backdrop = 2;
+  const int backdrop = DWMSBT_MAINWINDOW;
   DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
                         sizeof(backdrop));
 #else
