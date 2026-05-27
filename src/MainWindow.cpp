@@ -7,10 +7,10 @@
 #include <QFileInfo>
 #include <QLabel>
 #include <QMenu>
-#include <QMenuBar>
 #include <QMimeData>
 #include <QSettings>
 #include <QStatusBar>
+#include <QToolButton>
 #include <QUrl>
 
 #include "ContentTheme.h"
@@ -19,63 +19,13 @@
 #include "EditorGroup.h"
 #include "PreferencesDialog.h"
 
-#ifdef Q_OS_WIN
-  #include <QGuiApplication>
-  #include <QStyleHints>
-  #include <windows.h>
-  #include <dwmapi.h>
-  // Fallbacks for older MinGW SDKs that predate these names. Placed AFTER
-  // the SDK headers so that when a future SDK ships the names — as a #define
-  // or, more likely, as DWMWINDOWATTRIBUTE / DWM_SYSTEMBACKDROP_TYPE enum
-  // entries — the SDK version wins. (A #define ahead of the SDK header would
-  // textually replace the enum entry's identifier and break the enum.)
-  // Values match the documented Microsoft DWM constants.
-  #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
-    #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
-  #endif
-  #ifndef DWMWA_SYSTEMBACKDROP_TYPE
-    #define DWMWA_SYSTEMBACKDROP_TYPE 38
-  #endif
-  #ifndef DWMSBT_MAINWINDOW
-    #define DWMSBT_MAINWINDOW 2
-  #endif
-#endif
+#include <QWKWidgets/widgetwindowagent.h>
+
+#include "TitleBar.h"
 
 namespace {
 constexpr int kRecentFilesLimit = 10;
 constexpr const char *kRecentFilesKey = "recentFiles";
-
-#ifdef Q_OS_WIN
-// Qt windows on Windows don't opt into the Win10/11 dark-mode titlebar by
-// default — the system frame stays in the legacy light style even when the
-// rest of the desktop is dark. Opt in via DWM so the titlebar tracks the
-// active Qt color scheme. Older Win10 builds return failure and the frame
-// keeps its prior appearance, so no fallback handling is needed.
-//
-// Note: users who've enabled "Show accent color on title bars and window
-// borders" in Personalization will still see their accent color here — that
-// setting overrides immersive dark mode for traditional Win32 chrome and
-// can't be bypassed without drawing a custom titlebar.
-void applyWindowsChrome(QWidget *w) {
-  const HWND hwnd = reinterpret_cast<HWND>(w->winId());
-  if(!hwnd) return;
-
-  const BOOL dark =
-      QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark
-          ? TRUE
-          : FALSE;
-  DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark,
-                        sizeof(dark));
-
-  // DWMSBT_MAINWINDOW (Mica). Pre-22H2 Win11 / Win10 return failure and the
-  // frame keeps its solid background. Without making the client area
-  // transparent the effect is confined to the titlebar/border, but that
-  // alone is a noticeable upgrade over the flat solid color.
-  const int backdrop = DWMSBT_MAINWINDOW;
-  DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
-                        sizeof(backdrop));
-}
-#endif
 }  // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
@@ -102,7 +52,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   // currently active group via openFile().
   setAcceptDrops(true);
 
-  auto *fileMenu = menuBar()->addMenu(tr("&File"));
+  // No QMenuBar in the window's chrome. The File and View QMenus get
+  // attached to the title bar's QToolButtons later in this constructor.
+  auto *fileMenu = new QMenu(tr("&File"), this);
 
   auto *openAction = fileMenu->addAction(tr("&Open..."));
   openAction->setShortcut(QKeySequence::Open);
@@ -138,11 +90,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   fileMenu->addSeparator();
 
-  auto *prefsAction = fileMenu->addAction(tr("&Preferences..."));
+  // Preferences action isn't in the menu — the title bar's settings cog is
+  // the entry point. The Ctrl+, shortcut still works because it's bound on
+  // the action below (added directly to the window) without needing a menu
+  // entry. (Pure-shortcut actions are how tab navigation is wired too — see
+  // bindShortcut() further down.)
+  auto *prefsAction = new QAction(tr("&Preferences..."), this);
   prefsAction->setShortcut(QKeySequence::Preferences);
   connect(prefsAction, &QAction::triggered, this, &MainWindow::onPreferences);
-
-  fileMenu->addSeparator();
+  addAction(prefsAction);
 
   auto *quitAction = fileMenu->addAction(tr("&Quit"));
   quitAction->setShortcut(QKeySequence::Quit);
@@ -166,7 +122,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   loadRecentFiles();
   rebuildRecentMenu();
 
-  auto *viewMenu = menuBar()->addMenu(tr("&View"));
+  auto *viewMenu = new QMenu(tr("&View"), this);
 
   auto *splitRightAction = viewMenu->addAction(tr("Split &Right"));
   splitRightAction->setShortcut(QKeySequence(tr("Ctrl+\\")));
@@ -203,14 +159,34 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   m_statusLabel = new QLabel(tr("No file open."), this);
   statusBar()->addWidget(m_statusLabel);
 
-#ifdef Q_OS_WIN
-  // winId() forces native HWND creation so the DWM calls have something to
-  // target. Reapply on system theme switches so the titlebar tracks live.
-  (void)winId();
-  applyWindowsChrome(this);
-  connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
-          [this](Qt::ColorScheme) { applyWindowsChrome(this); });
-#endif
+  // Custom frameless chrome. QWindowKit handles the native bits: snap
+  // layouts, snap zones, resize edges, Win11 immersive dark mode + Mica
+  // backdrop, the maximize hover preview. We just supply the title widget
+  // and tell QWK which children are the system buttons (so it knows where
+  // the maximize hover popout anchors) and which are interactive (so they
+  // get clicks instead of treating the whole strip as a drag zone).
+  auto *titleBar = new TitleBar(this);
+  titleBar->setFileMenu(fileMenu);
+  titleBar->setViewMenu(viewMenu);
+  connect(titleBar, &TitleBar::settingsClicked, this,
+          &MainWindow::onPreferences);
+  connect(titleBar, &TitleBar::minimizeClicked, this, &QWidget::showMinimized);
+  connect(titleBar, &TitleBar::maximizeClicked, this, [this]() {
+    if(isMaximized()) showNormal();
+    else showMaximized();
+  });
+  connect(titleBar, &TitleBar::closeClicked, this, &QWidget::close);
+  setMenuWidget(titleBar);
+
+  auto *agent = new QWK::WidgetWindowAgent(this);
+  agent->setup(this);
+  agent->setTitleBar(titleBar);
+  agent->setSystemButton(QWK::WindowAgentBase::Minimize, titleBar->minButton());
+  agent->setSystemButton(QWK::WindowAgentBase::Maximize, titleBar->maxButton());
+  agent->setSystemButton(QWK::WindowAgentBase::Close, titleBar->closeButton());
+  agent->setHitTestVisible(titleBar->fileButton(), true);
+  agent->setHitTestVisible(titleBar->viewButton(), true);
+  agent->setHitTestVisible(titleBar->settingsButton(), true);
 }
 
 MainWindow::~MainWindow() = default;

@@ -5,6 +5,11 @@
 #include "MainWindow.h"
 
 int main(int argc, char *argv[]) {
+  // QWindowKit's WidgetWindowAgent requires this be set before QApplication
+  // is constructed — without it, native sibling HWNDs created for child
+  // widgets confuse the frameless hit-testing.
+  QCoreApplication::setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
+
   QApplication app(argc, argv);
 
   // Identity comes from CMake (MDV_* compile defs, see CMakeLists.txt), so the

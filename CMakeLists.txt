@@ -238,12 +238,35 @@ else()
     set(KSH KF6::SyntaxHighlighting)
 endif()
 
+# QWindowKit — frameless-window scaffolding (custom titlebar + correct snap
+# layouts / resize zones / system buttons). No system package on any platform,
+# so we FetchContent it. QWINDOWKIT_INSTALL=OFF keeps its install rules from
+# leaking into the .deb/.rpm; on Windows the install() override above would
+# already gate them, but the off-switch is cleaner.
+include(FetchContent)
+set(QWINDOWKIT_BUILD_STATIC ON  CACHE BOOL "" FORCE)
+set(QWINDOWKIT_INSTALL      OFF CACHE BOOL "" FORCE)
+set(QWINDOWKIT_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    QWindowKit
+    GIT_REPOSITORY https://github.com/stdware/qwindowkit.git
+    GIT_TAG 1.5.0
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(QWindowKit)
+
 qt_standard_project_setup()
 
 qt_add_executable(mdv
     src/main.cpp
     src/MainWindow.cpp
     src/MainWindow.h
+    src/TitleBar.cpp
+    src/TitleBar.h
+    src/WindowsChrome.cpp
+    src/WindowsChrome.h
+    src/CodiconFont.cpp
+    src/CodiconFont.h
     src/DocumentView.cpp
     src/DocumentView.h
     src/EditorGroup.cpp
@@ -277,7 +300,7 @@ if(WIN32)
     target_link_libraries(mdv PRIVATE dwmapi)
 endif()
 
-target_link_libraries(mdv PRIVATE Qt6::Widgets ${MD4C} ${KSH})
+target_link_libraries(mdv PRIVATE Qt6::Widgets ${MD4C} ${KSH} QWindowKit::Widgets)
 
 target_include_directories(mdv PRIVATE src)
 

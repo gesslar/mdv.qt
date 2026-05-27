@@ -12,10 +12,17 @@
 #include <QVBoxLayout>
 
 #include "ContentTheme.h"
+#include "WindowsChrome.h"
 
 PreferencesDialog::PreferencesDialog(QWidget *parent) : QDialog(parent) {
   setWindowTitle(tr("Preferences"));
   resize(440, 280);
+
+  // Native frame on Preferences (no QWindowKit on dialogs). Force native
+  // window creation so the DWM dark-titlebar opt-in has an HWND to target;
+  // the helper is a no-op on non-Windows builds.
+  (void)winId();
+  applyWindowsChrome(this);
 
   auto *root = new QVBoxLayout(this);
 
