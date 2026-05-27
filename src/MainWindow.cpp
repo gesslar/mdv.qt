@@ -30,6 +30,9 @@
   #ifndef DWMWA_SYSTEMBACKDROP_TYPE
     #define DWMWA_SYSTEMBACKDROP_TYPE 38
   #endif
+  #ifndef DWMSBT_MAINWINDOW
+    #define DWMSBT_MAINWINDOW 2
+  #endif
   #include <windows.h>
   #include <dwmapi.h>
 #endif
@@ -64,7 +67,7 @@ void applyWindowsChrome(QWidget *w) {
   // frame keeps its solid background. Without making the client area
   // transparent the effect is confined to the titlebar/border, but that
   // alone is a noticeable upgrade over the flat solid color.
-  const int backdrop = 2;
+  const int backdrop = DWMSBT_MAINWINDOW;
   DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
                         sizeof(backdrop));
 }
