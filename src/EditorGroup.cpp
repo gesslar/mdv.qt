@@ -9,16 +9,18 @@
 #include <QDropEvent>
 #include <QEnterEvent>
 #include <QFocusEvent>
-#include <QIcon>
+#include <QFont>
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
+#include <QPalette>
 #include <QStyle>
 #include <QTabBar>
 #include <QUrl>
 
+#include "CodiconFont.h"
 #include "DocumentView.h"
 #include "EditorArea.h"
 #include "TabBar.h"
@@ -64,18 +66,27 @@ public:
     return QSize(s, s);
   }
 
+  void setGlyph(char16_t cp) {
+    m_glyph = cp;
+    update();
+  }
+
 protected:
   void paintEvent(QPaintEvent *) override {
     QPainter p(this);
+    p.setRenderHint(QPainter::Antialiasing, true);
     if(underMouse()) {
-      p.setRenderHint(QPainter::Antialiasing, true);
       p.setPen(Qt::NoPen);
       p.setBrush(QColor(127, 127, 127, 64));
       p.drawRoundedRect(rect(), 3, 3);
     }
-    QRect iconRect(QPoint(0, 0), iconSize());
-    iconRect.moveCenter(rect().center());
-    icon().paint(&p, iconRect);
+    if(m_glyph) {
+      QFont f(Codicon::family());
+      f.setPixelSize(iconSize().width());
+      p.setFont(f);
+      p.setPen(palette().color(QPalette::WindowText));
+      p.drawText(rect(), Qt::AlignCenter, QString(QChar(m_glyph)));
+    }
   }
 
   void enterEvent(QEnterEvent *e) override {
@@ -86,6 +97,9 @@ protected:
     QAbstractButton::leaveEvent(e);
     update();
   }
+
+private:
+  char16_t m_glyph = 0;
 };
 
 EditorArea *findArea(QWidget *start) {
@@ -348,17 +362,17 @@ void EditorGroup::refreshTabButton(DocumentView *doc) {
 
   const auto side = QTabBar::ButtonPosition(style()->styleHint(
       QStyle::SH_TabBar_CloseButtonPosition, nullptr, tabBar()));
-  auto *btn = qobject_cast<QAbstractButton *>(tabBar()->tabButton(index, side));
+  // installTabButton always parents a TabActionButton here, and it stays put
+  // for the lifetime of the tab — a plain static_cast is safe.
+  auto *btn = static_cast<TabActionButton *>(tabBar()->tabButton(index, side));
   if(!btn) return;
 
-  // Codicon glyphs (baked gray). Pinned tab → pin (click unpins); else close.
+  // Pinned tab shows the pinned codicon (click unpins); else the close glyph.
   if(doc->isPinned()) {
-    static const QIcon pinIcon(QStringLiteral(":/icons/pin.svg"));
-    btn->setIcon(pinIcon);
+    btn->setGlyph(Codicon::Pinned);
     btn->setToolTip(tr("Unpin"));
   } else {
-    static const QIcon closeIcon(QStringLiteral(":/icons/close.svg"));
-    btn->setIcon(closeIcon);
+    btn->setGlyph(Codicon::Close);
     btn->setToolTip(tr("Close"));
   }
 }
