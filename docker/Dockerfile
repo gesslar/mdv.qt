@@ -27,7 +27,7 @@ FROM --platform=linux/amd64 fedora:44
 # metainfo derives its release date from `git log`) + the appdir-lint deps
 # (desktop-file-validate, appstreamcli, mimetype, which).
 RUN dnf install -y --setopt=install_weak_deps=False \
-      qt6-qtbase-devel kf6-syntax-highlighting-devel md4c-devel \
+      qt6-qtbase-devel qt6-qtbase-private-devel kf6-syntax-highlighting-devel md4c-devel \
       extra-cmake-modules cmake ninja-build gcc-c++ git \
       flatpak flatpak-builder dpkg rpm-build \
       desktop-file-utils appstream perl-File-MimeInfo file which curl \
