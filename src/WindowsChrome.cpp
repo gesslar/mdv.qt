@@ -18,10 +18,9 @@
   #endif
   #include <windows.h>
   #include <dwmapi.h>
-#endif
 
-void applyWindowsChrome(QWidget *w) {
-#ifdef Q_OS_WIN
+namespace {
+void writeDwmAttrs(QWidget *w) {
   const HWND hwnd = reinterpret_cast<HWND>(w->winId());
   if(!hwnd) return;
 
@@ -37,6 +36,20 @@ void applyWindowsChrome(QWidget *w) {
   const int backdrop = DWMSBT_MAINWINDOW;
   DwmSetWindowAttribute(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, &backdrop,
                         sizeof(backdrop));
+}
+}  // namespace
+#endif
+
+void applyWindowsChrome(QWidget *w) {
+#ifdef Q_OS_WIN
+  writeDwmAttrs(w);
+  // Re-apply on system theme switches so the frame tracks live. `w` is the
+  // connection context — destroying the widget auto-disconnects, and the
+  // lambda doesn't re-enter applyWindowsChrome so a single call wires the
+  // tracker exactly once.
+  QObject::connect(QGuiApplication::styleHints(),
+                   &QStyleHints::colorSchemeChanged, w,
+                   [w](Qt::ColorScheme) { writeDwmAttrs(w); });
 #else
   (void)w;
 #endif

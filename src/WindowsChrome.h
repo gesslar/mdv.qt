@@ -6,6 +6,10 @@ class QWidget;
 //   - DWMWA_USE_IMMERSIVE_DARK_MODE  (titlebar follows Qt color scheme)
 //   - DWMWA_SYSTEMBACKDROP_TYPE      (Mica on Win11 22H2+)
 //
+// Applies the attributes immediately and also wires the widget to
+// QStyleHints::colorSchemeChanged so the frame tracks live theme switches
+// for the rest of the widget's lifetime. Call once per widget.
+//
 // Used for dialogs that keep native frames (Preferences, file pickers via
 // our own re-parented dialogs). The main window uses QWindowKit's custom
 // titlebar and doesn't need this.
