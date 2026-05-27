@@ -22,7 +22,7 @@
 ### Fedora
 
 ```bash
-sudo dnf install qt6-qtbase-devel md4c-devel kf6-syntax-highlighting-devel cmake ninja-build gcc-c++
+sudo dnf install qt6-qtbase-devel qt6-qtbase-private-devel md4c-devel kf6-syntax-highlighting-devel cmake ninja-build gcc-c++
 ```
 
 Add `qt-creator gdb clang-tools-extra` if you want the IDE and debugger.
@@ -30,7 +30,7 @@ Add `qt-creator gdb clang-tools-extra` if you want the IDE and debugger.
 ### Debian / Ubuntu
 
 ```bash
-sudo apt install qt6-base-dev libmd4c-dev libkf6syntaxhighlighting-dev cmake ninja-build g++
+sudo apt install qt6-base-dev qt6-base-private-dev libmd4c-dev libkf6syntaxhighlighting-dev cmake ninja-build g++
 # Optional IDE:
 sudo apt install qtcreator
 ```

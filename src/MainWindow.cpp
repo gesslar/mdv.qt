@@ -12,6 +12,7 @@
 #include <QStatusBar>
 #include <QToolButton>
 #include <QUrl>
+#include <QVBoxLayout>
 
 #include "ContentTheme.h"
 #include "DocumentView.h"
@@ -32,8 +33,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   setWindowTitle(tr("mdv"));
   resize(900, 600);
 
+  // m_area is placed into a container central widget at the end of this
+  // constructor, alongside the custom title bar.
   m_area = new EditorArea(this);
-  setCentralWidget(m_area);
   connect(m_area, &EditorArea::currentDocumentChanged, this,
           &MainWindow::onCurrentDocumentChanged);
   connect(m_area, &EditorArea::filesDropped, this,
@@ -165,6 +167,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   // and tell QWK which children are the system buttons (so it knows where
   // the maximize hover popout anchors) and which are interactive (so they
   // get clicks instead of treating the whole strip as a drag zone).
+  //
+  // Set up the window agent FIRST (it reworks the native window into a
+  // frameless one), then build the title bar and register it.
+  auto *agent = new QWK::WidgetWindowAgent(this);
+  agent->setup(this);
+
   auto *titleBar = new TitleBar(this);
   titleBar->setFileMenu(fileMenu);
   titleBar->setViewMenu(viewMenu);
@@ -176,10 +184,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     else showMaximized();
   });
   connect(titleBar, &TitleBar::closeClicked, this, &QWidget::close);
-  setMenuWidget(titleBar);
 
-  auto *agent = new QWK::WidgetWindowAgent(this);
-  agent->setup(this);
   agent->setTitleBar(titleBar);
   agent->setSystemButton(QWK::WindowAgentBase::Minimize, titleBar->minButton());
   agent->setSystemButton(QWK::WindowAgentBase::Maximize, titleBar->maxButton());
@@ -187,6 +192,22 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   agent->setHitTestVisible(titleBar->fileButton(), true);
   agent->setHitTestVisible(titleBar->viewButton(), true);
   agent->setHitTestVisible(titleBar->settingsButton(), true);
+
+  // Install the title bar as the top of a container central widget rather than
+  // via setMenuWidget(). On KDE the Plasma platform theme lazily creates a
+  // QMenuBar and installs it in QMainWindow's menu-bar slot; that eviction
+  // deletes a title bar parked there with setMenuWidget(), leaving the window
+  // with no title bar (and dangling QWK button pointers). Keeping the menu-bar
+  // slot empty and stacking [title bar | editor area] in the central widget
+  // sidesteps the contention — QWK only needs setTitleBar() above for the drag
+  // region, not a particular place in the layout.
+  auto *container = new QWidget(this);
+  auto *layout = new QVBoxLayout(container);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+  layout->addWidget(titleBar);
+  layout->addWidget(m_area, 1);
+  setCentralWidget(container);
 }
 
 MainWindow::~MainWindow() = default;
