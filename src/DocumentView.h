@@ -1,9 +1,17 @@
 #pragma once
 
+#include <QList>
+#include <QPair>
 #include <QPoint>
+#include <QString>
 #include <QWidget>
 
+#include "Markdown.h"
+#include "OutlinePanel.h"  // OutlineSide
+
+class OutlinePanel;
 class QFileSystemWatcher;
+class QSplitter;
 class QTextBrowser;
 class QTimer;
 class QUrl;
@@ -36,6 +44,29 @@ public:
   // Canonical (symlink-resolved) absolute path, or empty if no file is loaded.
   QString filePath() const { return m_filePath; }
 
+  // Heading outline of the current document, in document order. Each id
+  // matches an anchor in the rendered HTML, so the outline panel can jump
+  // to it via the same path as an in-document #anchor click. Refreshed on
+  // load and on hot-reload; headingsChanged() fires after each refresh.
+  const QList<mdv::Heading> &headings() const { return m_headings; }
+
+  // Scroll so the heading carrying `anchorId` sits at the top of the
+  // viewport. No-op if the id isn't a known heading anchor.
+  void scrollToHeading(const QString &anchorId);
+
+  // Anchor id of the last heading at or above the top of the viewport — the
+  // section the reader is currently in — or empty if scrolled above the first
+  // heading. Drives the outline's scroll-spy highlight.
+  QString currentHeadingId() const;
+
+  // This document's own outline panel: each DocumentView owns one, so split
+  // groups can independently show or hide their outline. The side and the
+  // shown/hidden default are seeded from (and written back to) QSettings, so a
+  // newly opened document inherits the last choice.
+  bool outlineVisible() const { return m_outlineVisible; }
+  void setOutlineVisible(bool on);
+  void toggleOutline() { setOutlineVisible(!m_outlineVisible); }
+
   // Basename of the loaded file, or a placeholder if none.
   QString displayName() const;
 
@@ -65,6 +96,18 @@ public:
 signals:
   void fileLoaded(const QString &canonicalPath);
 
+  // The heading outline was (re)built — on load and on every hot-reload.
+  // headings() reflects the new outline by the time this fires.
+  void headingsChanged();
+
+  // The section the reader is in changed as the document scrolled. Carries
+  // the anchor id of the current heading (empty above the first heading).
+  void currentHeadingChanged(const QString &anchorId);
+
+  // This document's outline was shown/hidden. Lets the View-menu toggle track
+  // the active document's state.
+  void outlineVisibilityChanged(bool visible);
+
   // The pinned state changed — the owning EditorGroup repaints the tab's pin
   // sash and (next step) repositions it within the pinned cluster.
   void pinnedChanged(bool pinned);
@@ -78,10 +121,29 @@ private slots:
   void onAnchorClicked(const QUrl &url);
   // The watched file changed on disk — debounced before reloadFromDisk().
   void onFileChanged(const QString &path);
+  // Vertical scroll moved — recompute the current section and emit
+  // currentHeadingChanged() only when it actually changes.
+  void onScrolled();
 
 private:
   QTextBrowser *m_browser = nullptr;
+  QSplitter *m_splitter = nullptr;
+  OutlinePanel *m_outline = nullptr;
+  bool m_outlineVisible = true;
+  OutlineSide m_outlineSide = OutlineSide::Left;
+  int m_outlineWidth = 240;
+
   QString m_filePath;
+  QList<mdv::Heading> m_headings;
+
+  // Scroll-spy cache: each heading anchor id paired with its laid-out y, in
+  // document order. Rebuilt lazily (positions move on reflow/zoom) — dirtied
+  // on re-render and whenever the document layout resizes. m_lastHeadingId
+  // debounces currentHeadingChanged() to actual transitions.
+  mutable QList<QPair<QString, qreal>> m_headingY;
+  mutable bool m_headingYDirty = true;
+  QString m_lastHeadingId;
+
   bool m_pinned = false;
   bool m_watching = true;
 
@@ -98,6 +160,16 @@ private:
   class QTimer *m_pendingAnchorTimer = nullptr;
 
   bool tryApplyAnchor();
+
+  // Walk the laid-out document and record (anchor id, y) for every heading
+  // block, sorted by y. Fills m_headingY and clears m_headingYDirty.
+  void rebuildHeadingPositions() const;
+
+  // (Re)order the outline/browser splitter for m_outlineSide and restore the
+  // outline's share of the width.
+  void applyOutlineArrangement();
+  // Flip the dock side and remember it as the new default.
+  void toggleOutlineSide();
 
   // (Re)point the watcher at m_filePath when watching is on; clears it
   // otherwise. Safe to call repeatedly (used after load and after each reload,

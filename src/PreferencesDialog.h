@@ -2,6 +2,7 @@
 
 #include <QDialog>
 
+class QCheckBox;
 class QComboBox;
 class QFontComboBox;
 class QSpinBox;
@@ -43,4 +44,5 @@ private:
   QFontComboBox *m_proseFont = nullptr;
   QSpinBox *m_proseSize = nullptr;
   QFontComboBox *m_monoFont = nullptr;
+  QCheckBox *m_outlineDefault = nullptr;
 };

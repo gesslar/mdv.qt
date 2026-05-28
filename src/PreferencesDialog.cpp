@@ -1,5 +1,6 @@
 #include "PreferencesDialog.h"
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFontComboBox>
@@ -57,6 +58,17 @@ PreferencesDialog::PreferencesDialog(QWidget *parent) : QDialog(parent) {
   fontsLayout->addRow(tr("Mono:"), m_monoFont);
 
   root->addWidget(fontsGroup);
+
+  // === View ===
+  auto *viewGroup = new QGroupBox(tr("View"), this);
+  auto *viewLayout = new QVBoxLayout(viewGroup);
+  m_outlineDefault = new QCheckBox(tr("Show outline by default"), viewGroup);
+  m_outlineDefault->setToolTip(
+      tr("Newly opened documents start with the outline panel shown. Each "
+         "document can still be toggled individually."));
+  viewLayout->addWidget(m_outlineDefault);
+  root->addWidget(viewGroup);
+
   root->addStretch();
 
   // === Buttons ===
@@ -95,6 +107,9 @@ void PreferencesDialog::reload() {
 
   const QString monoFamily = s.value(QStringLiteral("fonts/mono")).toString();
   if(!monoFamily.isEmpty()) m_monoFont->setCurrentFont(QFont(monoFamily));
+
+  m_outlineDefault->setChecked(
+      s.value(QStringLiteral("outline/showByDefault"), false).toBool());
 }
 
 void PreferencesDialog::saveToSettings() {
@@ -105,6 +120,8 @@ void PreferencesDialog::saveToSettings() {
              m_proseFont->currentFont().family());
   s.setValue(QStringLiteral("fonts/prose.size"), m_proseSize->value());
   s.setValue(QStringLiteral("fonts/mono"), m_monoFont->currentFont().family());
+  s.setValue(QStringLiteral("outline/showByDefault"),
+             m_outlineDefault->isChecked());
 }
 
 void PreferencesDialog::onApply() {
