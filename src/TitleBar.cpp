@@ -46,8 +46,8 @@ TitleBar::TitleBar(QWidget *parent) : QWidget(parent) {
   m_iconLabel = new QLabel(this);
   m_iconLabel->setFixedSize(kTitleBarHeight, kTitleBarHeight);
   m_iconLabel->setAlignment(Qt::AlignCenter);
-  m_iconLabel->setPixmap(QIcon(QStringLiteral(":/icons/mdv.png"))
-                             .pixmap(QSize(16, 16)));
+  m_iconLabel->setPixmap(
+      QIcon(QStringLiteral(":/icons/mdv.png")).pixmap(QSize(16, 16)));
 
   // Menu buttons use InstantPopup so a single click drops the menu (the
   // dropdown arrow is hidden via the stylesheet — the menu reads as a normal
@@ -64,18 +64,18 @@ TitleBar::TitleBar(QWidget *parent) : QWidget(parent) {
   m_viewBtn->setFocusPolicy(Qt::NoFocus);
   m_viewBtn->setFixedHeight(kTitleBarHeight);
 
-  m_settingsBtn = makeChromeButton(QStringLiteral("sysSettings"),
-                                   Codicon::Settings, this);
+  m_settingsBtn =
+      makeChromeButton(QStringLiteral("sysSettings"), Codicon::Settings, this);
   m_settingsBtn->setToolTip(tr("Preferences"));
   connect(m_settingsBtn, &QToolButton::clicked, this,
           &TitleBar::settingsClicked);
 
-  m_minBtn = makeChromeButton(QStringLiteral("sysMin"),
-                              Codicon::ChromeMinimize, this);
-  m_maxBtn = makeChromeButton(QStringLiteral("sysMax"),
-                              Codicon::ChromeMaximize, this);
-  m_closeBtn = makeChromeButton(QStringLiteral("sysClose"),
-                                Codicon::ChromeClose, this);
+  m_minBtn =
+      makeChromeButton(QStringLiteral("sysMin"), Codicon::ChromeMinimize, this);
+  m_maxBtn =
+      makeChromeButton(QStringLiteral("sysMax"), Codicon::ChromeMaximize, this);
+  m_closeBtn =
+      makeChromeButton(QStringLiteral("sysClose"), Codicon::ChromeClose, this);
 
   connect(m_minBtn, &QToolButton::clicked, this, &TitleBar::minimizeClicked);
   connect(m_maxBtn, &QToolButton::clicked, this, &TitleBar::maximizeClicked);
@@ -95,7 +95,9 @@ TitleBar::TitleBar(QWidget *parent) : QWidget(parent) {
 
   refreshTheme();
   connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
-          [this](Qt::ColorScheme) { refreshTheme(); });
+          [this](Qt::ColorScheme) {
+            refreshTheme();
+          });
 }
 
 void TitleBar::refreshTheme() {
@@ -103,10 +105,12 @@ void TitleBar::refreshTheme() {
   // of the chrome on a system-theme switch. Close button hover stays the
   // canonical Win11 red regardless of scheme; the menu-indicator chevron is
   // suppressed in both — the buttons read as labels, not dropdowns.
-  const bool dark = QGuiApplication::styleHints()->colorScheme()
-                    == Qt::ColorScheme::Dark;
-  const QString bg = dark ? QStringLiteral("#1f1f1f") : QStringLiteral("#f3f3f3");
-  const QString fg = dark ? QStringLiteral("#f0f0f0") : QStringLiteral("#000000");
+  const bool dark =
+      QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
+  const QString bg =
+      dark ? QStringLiteral("#1f1f1f") : QStringLiteral("#f3f3f3");
+  const QString fg =
+      dark ? QStringLiteral("#f0f0f0") : QStringLiteral("#000000");
   const QString hover = dark ? QStringLiteral("rgba(255,255,255,0.08)")
                              : QStringLiteral("rgba(0,0,0,0.06)");
   const QString press = dark ? QStringLiteral("rgba(255,255,255,0.04)")
@@ -125,7 +129,8 @@ TitleBar QToolButton:pressed { background: %4; }
 TitleBar QToolButton#sysClose:hover { background: #c42b1c; color: white; }
 TitleBar QToolButton#sysClose:pressed { background: #b4271a; color: white; }
 TitleBar QToolButton::menu-indicator { image: none; }
-)").arg(bg, fg, hover, press));
+)")
+                    .arg(bg, fg, hover, press));
 }
 
 void TitleBar::setFileMenu(QMenu *menu) { m_fileBtn->setMenu(menu); }
@@ -151,6 +156,6 @@ bool TitleBar::eventFilter(QObject *obj, QEvent *e) {
 
 void TitleBar::refreshMaxIcon() {
   const bool maximized = window() && window()->isMaximized();
-  m_maxBtn->setText(QString(QChar(
-      maximized ? Codicon::ChromeRestore : Codicon::ChromeMaximize)));
+  m_maxBtn->setText(QString(
+      QChar(maximized ? Codicon::ChromeRestore : Codicon::ChromeMaximize)));
 }

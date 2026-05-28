@@ -6,6 +6,7 @@
 #include <QChar>
 #include <QLoggingCategory>
 #include <QRegularExpression>
+#include <QSet>
 
 #include "Highlighter.h"
 
@@ -129,9 +130,76 @@ QString wrapBlockquotes(const QString &html) {
   return out;
 }
 
+// Strip HTML tags from a heading's inner markup so the outline label and the
+// slug are computed from the plain text (md4c renders inline `**`, `code`,
+// links etc. as nested tags inside the <hN>).
+QString stripTags(QString s) {
+  static const QRegularExpression tag(QStringLiteral("<[^>]*>"));
+  return s.remove(tag);
+}
+
+// GitHub-flavored heading slug, so an anchor generated here matches the one
+// GitHub renders for the same heading (the app already parses GFM): lowercase;
+// letters, digits, underscores and existing hyphens are kept; each whitespace
+// char becomes a hyphen; every other character is dropped. Deliberately does
+// *not* collapse the resulting hyphens — "FAQ & Troubleshooting" slugs to
+// "faq--troubleshooting" on GitHub, and we mirror that so cross-referenced
+// links resolve identically in both places.
+QString slugify(const QString &text) {
+  QString out;
+  out.reserve(text.size());
+  for(const QChar ch : text) {
+    if(ch.isLetterOrNumber()) out.append(ch.toLower());
+    else if(ch == u'_' || ch == u'-') out.append(ch);
+    else if(ch.isSpace()) out.append(u'-');
+    // else: dropped
+  }
+  return out;
+}
+
+// Inject a unique `id` onto every <h1>..<h6> md4c emitted and collect the
+// heading outline in document order. Single source of truth: the id written
+// into the HTML is the same id recorded in the Heading, so a TOC click and an
+// in-document #anchor link resolve identically. Duplicate slugs get a -1, -2,
+// … suffix (GitHub semantics).
+QString injectHeadingIds(const QString &html, QList<Heading> &headings) {
+  static const QRegularExpression re(
+      QStringLiteral("<h([1-6])>(.*?)</h\\1>"),
+      QRegularExpression::DotMatchesEverythingOption);
+
+  QString out;
+  out.reserve(html.size() + 64);
+  qsizetype last = 0;
+  QSet<QString> used;
+
+  QRegularExpressionMatchIterator it = re.globalMatch(html);
+  while(it.hasNext()) {
+    const QRegularExpressionMatch m = it.next();
+    out.append(QStringView(html).sliced(last, m.capturedStart() - last));
+    last = m.capturedEnd();
+
+    const int level = m.captured(1).toInt();
+    const QString inner = m.captured(2);
+    const QString text = unescapeHtml(stripTags(inner)).trimmed();
+
+    QString base = slugify(text);
+    if(base.isEmpty()) base = QStringLiteral("section");
+    QString id = base;
+    for(int n = 1; used.contains(id); ++n)
+      id = base + QLatin1Char('-') + QString::number(n);
+    used.insert(id);
+
+    headings.append({.level = level, .text = text, .id = id});
+    out.append(QStringLiteral("<h%1 id=\"%2\">%3</h%1>")
+                   .arg(QString::number(level), id.toHtmlEscaped(), inner));
+  }
+  out.append(QStringView(html).sliced(last));
+  return out;
+}
+
 }  // namespace
 
-QString markdownToHtml(const QString &markdown) {
+RenderResult renderMarkdown(const QString &markdown) {
   const QByteArray utf8 = markdown.toUtf8();
 
   // GFM dialect — tables, task lists, strikethrough, autolinks — matches
@@ -154,13 +222,20 @@ QString markdownToHtml(const QString &markdown) {
   if(rc != 0) {
     qCWarning(lcMarkdown) << "md4c parse failed (rc=" << rc
                           << "), falling back to plain-text rendering";
-    return QStringLiteral("<pre>%1</pre>").arg(markdown.toHtmlEscaped());
+    return {.html =
+                QStringLiteral("<pre>%1</pre>").arg(markdown.toHtmlEscaped())};
   }
 
-  // Blockquotes are wrapped first, on the clean md4c output where <blockquote>
-  // only ever appears as a real tag; code-block highlighting runs after and
-  // still finds any <pre><code> nested inside a wrapped quote.
-  return highlightCodeBlocks(wrapBlockquotes(QString::fromUtf8(html)));
+  // Heading ids are injected first, on the clean md4c output, so the same
+  // <hN> text the outline reads is what carries the slug. Blockquotes are
+  // wrapped next (where <blockquote> only ever appears as a real tag); code-
+  // block highlighting runs last and still finds any <pre><code> nested
+  // inside a wrapped quote.
+  RenderResult result;
+  const QString withIds =
+      injectHeadingIds(QString::fromUtf8(html), result.headings);
+  result.html = highlightCodeBlocks(wrapBlockquotes(withIds));
+  return result;
 }
 
 }  // namespace mdv

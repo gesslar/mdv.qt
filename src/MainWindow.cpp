@@ -13,6 +13,7 @@
 #include <QMimeData>
 #include <QProcess>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QStatusBar>
 #include <QStyleHints>
 #include <QToolButton>
@@ -38,10 +39,9 @@ constexpr const char *kRecentFilesKey = "recentFiles";
 void revealInFileManager(const QString &path) {
   const QFileInfo info(path);
 #if defined(Q_OS_WIN)
-  QProcess::startDetached(
-      QStringLiteral("explorer.exe"),
-      {QStringLiteral("/select,") +
-       QDir::toNativeSeparators(info.absoluteFilePath())});
+  QProcess::startDetached(QStringLiteral("explorer.exe"),
+                          {QStringLiteral("/select,") +
+                           QDir::toNativeSeparators(info.absoluteFilePath())});
 #elif defined(Q_OS_MACOS)
   QProcess::startDetached(QStringLiteral("open"),
                           {QStringLiteral("-R"), info.absoluteFilePath()});
@@ -98,7 +98,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   m_closeTabAction = fileMenu->addAction(tr("&Close Tab"));
   // Keep the platform-standard Close keys (Ctrl+F4 on Windows) and add Ctrl+W,
   // which Windows doesn't bind by default but everyone reaches for.
-  QList<QKeySequence> closeKeys = QKeySequence::keyBindings(QKeySequence::Close);
+  QList<QKeySequence> closeKeys =
+      QKeySequence::keyBindings(QKeySequence::Close);
   if(const QKeySequence ctrlW(Qt::CTRL | Qt::Key_W); !closeKeys.contains(ctrlW))
     closeKeys.append(ctrlW);
   m_closeTabAction->setShortcuts(closeKeys);
@@ -200,7 +201,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   // grey hover wash (matching the tab buttons) and a little left pad.
   refreshStatusBarStyle();
   connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
-          [this](Qt::ColorScheme) { refreshStatusBarStyle(); });
+          [this](Qt::ColorScheme) {
+            refreshStatusBarStyle();
+          });
   statusBar()->addWidget(m_statusButton);
 
   // Left-click copies the full path; the temporary status message reappears as
@@ -272,6 +275,17 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   layout->addWidget(titleBar);
   layout->addWidget(m_area, 1);
   setCentralWidget(container);
+
+  // The outline lives inside each DocumentView (so split groups toggle it
+  // independently); this menu item just flips the active document's copy and
+  // mirrors its state. syncOutlineAction() keeps it pointed at the active doc.
+  viewMenu->addSeparator();
+  m_outlineAction = viewMenu->addAction(tr("Show &Outline"));
+  m_outlineAction->setCheckable(true);
+  connect(m_outlineAction, &QAction::toggled, this, [this](bool on) {
+    if(auto *doc = m_area->currentDocument()) doc->setOutlineVisible(on);
+  });
+  syncOutlineAction(m_area->currentDocument());
 }
 
 MainWindow::~MainWindow() = default;
@@ -406,9 +420,10 @@ void MainWindow::onMoveTabLeft() {
 }
 
 void MainWindow::refreshStatusBarStyle() {
-  const bool dark = QGuiApplication::styleHints()->colorScheme()
-                    == Qt::ColorScheme::Dark;
-  const QString fg = dark ? QStringLiteral("#f0f0f0") : QStringLiteral("#000000");
+  const bool dark =
+      QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
+  const QString fg =
+      dark ? QStringLiteral("#f0f0f0") : QStringLiteral("#000000");
   // Zero vertical padding so the button hugs the text height and the status
   // bar centers it; horizontal padding gives the hover pill some breathing
   // room while keeping the small left inset off the window edge. Hover/press
@@ -420,12 +435,16 @@ void MainWindow::refreshStatusBarStyle() {
           "QStatusBar QToolButton { border: none; background: transparent;"
           " color: %1; padding: 0px 8px 0px 4px; border-radius: 4px; }"
           "QStatusBar QToolButton:disabled { color: #888888; }"
-          "QStatusBar QToolButton:enabled:hover { background: rgba(127,127,127,0.18); }"
-          "QStatusBar QToolButton:enabled:pressed { background: rgba(127,127,127,0.30); }")
+          "QStatusBar QToolButton:enabled:hover { background: "
+          "rgba(127,127,127,0.18); }"
+          "QStatusBar QToolButton:enabled:pressed { background: "
+          "rgba(127,127,127,0.30); }")
           .arg(fg));
 }
 
 void MainWindow::onCurrentDocumentChanged(DocumentView *doc) {
+  syncOutlineAction(doc);
+
   if(!doc) {
     setWindowTitle(tr("mdv"));
     m_currentPath.clear();
@@ -439,6 +458,20 @@ void MainWindow::onCurrentDocumentChanged(DocumentView *doc) {
   m_statusButton->setText(m_currentPath);
   m_statusButton->setToolTip(tr("Click to copy path"));
   m_statusButton->setEnabled(true);
+}
+
+void MainWindow::syncOutlineAction(DocumentView *doc) {
+  // Follow only the active document, so a toggle elsewhere doesn't move the
+  // checkmark out from under the user.
+  disconnect(m_outlineConn);
+  m_outlineAction->setEnabled(doc != nullptr);
+  {
+    const QSignalBlocker block(m_outlineAction);  // don't echo back as a toggle
+    m_outlineAction->setChecked(doc && doc->outlineVisible());
+  }
+  if(doc)
+    m_outlineConn = connect(doc, &DocumentView::outlineVisibilityChanged,
+                            m_outlineAction, &QAction::setChecked);
 }
 
 void MainWindow::loadRecentFiles() {

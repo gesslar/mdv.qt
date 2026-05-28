@@ -15,9 +15,11 @@
 #include <QPalette>
 #include <QScrollBar>
 #include <QSettings>
+#include <QSplitter>
 #include <QTextBlock>
 #include <QTextBrowser>
 #include <QTextCursor>
+#include <QTextFragment>
 #include <QTextStream>
 #include <QTimer>
 #include <QUrl>
@@ -26,6 +28,7 @@
 #include "ContentTheme.h"
 #include "EditorGroup.h"
 #include "Markdown.h"
+#include "OutlinePanel.h"
 
 DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   auto *layout = new QVBoxLayout(this);
@@ -54,7 +57,57 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   applyDocumentPalette();
   connect(m_browser, &QWidget::customContextMenuRequested, this,
           &DocumentView::onContextMenuRequested);
-  layout->addWidget(m_browser);
+  // Scroll-spy: track which section is at the top of the viewport so the
+  // outline can highlight it. Heading y-positions move on reflow, so dirty
+  // the cache when the document's layout resizes (width change, zoom, edit).
+  connect(m_browser->verticalScrollBar(), &QAbstractSlider::valueChanged, this,
+          &DocumentView::onScrolled);
+  connect(m_browser->document()->documentLayout(),
+          &QAbstractTextDocumentLayout::documentSizeChanged, this,
+          [this](const QSizeF &) {
+            // Heading positions moved; recompute so the outline highlight
+            // tracks reflow (and lands on the top section after first layout).
+            m_headingYDirty = true;
+            onScrolled();
+          });
+
+  // Each document carries its own outline panel beside the browser, so split
+  // groups can show or hide it independently. Initial visibility follows the
+  // "show outline by default" preference; the side and width are remembered
+  // globally so a new document inherits the last layout.
+  QSettings s;
+  m_outlineSide = s.value(QStringLiteral("outline/side"), 0).toInt() == 1
+                      ? OutlineSide::Right
+                      : OutlineSide::Left;
+  m_outlineVisible =
+      s.value(QStringLiteral("outline/showByDefault"), false).toBool();
+  m_outlineWidth = s.value(QStringLiteral("outline/width"), 240).toInt();
+  if(m_outlineWidth < 80) m_outlineWidth = 240;
+
+  m_outline = new OutlinePanel(this);
+  m_outline->setSide(m_outlineSide);
+  m_splitter = new QSplitter(Qt::Horizontal, this);
+  m_splitter->setChildrenCollapsible(false);
+  m_splitter->setHandleWidth(1);
+
+  // The panel talks only to its own document — no MainWindow plumbing.
+  connect(m_outline, &OutlinePanel::headingActivated, this,
+          &DocumentView::scrollToHeading);
+  connect(m_outline, &OutlinePanel::hideRequested, this, [this] {
+    setOutlineVisible(false);
+  });
+  connect(m_outline, &OutlinePanel::moveToOtherSideRequested, this, [this] {
+    toggleOutlineSide();
+  });
+  connect(this, &DocumentView::headingsChanged, this, [this] {
+    m_outline->setHeadings(m_headings);
+  });
+  connect(this, &DocumentView::currentHeadingChanged, m_outline,
+          &OutlinePanel::setCurrentHeading);
+
+  applyOutlineArrangement();
+  m_outline->setVisible(m_outlineVisible);
+  layout->addWidget(m_splitter);
 
   // Anchor-apply window: we keep re-applying on every rangeChanged for a
   // short window after scrollToAnchor() is called, because layout often
@@ -95,7 +148,11 @@ bool DocumentView::loadFile(const QString &path) {
   // Render markdown → HTML externally (via md4c) and feed setHtml, so
   // the document's default stylesheet actually applies. setMarkdown
   // would bypass CSS by baking in QTextCharFormats during import.
-  m_browser->setHtml(mdv::markdownToHtml(in.readAll()));
+  const mdv::RenderResult rendered = mdv::renderMarkdown(in.readAll());
+  m_browser->setHtml(rendered.html);
+  m_headings = rendered.headings;
+  m_headingYDirty = true;
+  m_lastHeadingId.clear();
 
   // QTextBrowser parks the text cursor wherever setMarkdown leaves it
   // and then scrolls to keep the cursor visible, which often lands at
@@ -115,6 +172,7 @@ bool DocumentView::loadFile(const QString &path) {
 
   armWatch();
   emit fileLoaded(m_filePath);
+  emit headingsChanged();
   return true;
 }
 
@@ -195,6 +253,110 @@ void DocumentView::onAnchorClicked(const QUrl &url) {
           ? QDir::cleanPath(rawPath)
           : QDir::cleanPath(base + QLatin1Char('/') + rawPath);
   emit openFileRequested(resolved);
+}
+
+void DocumentView::scrollToHeading(const QString &anchorId) {
+  if(anchorId.isEmpty()) return;
+  // Same path an in-document #anchor click takes; QTextBrowser brings the
+  // named anchor to the top of the viewport.
+  m_browser->scrollToAnchor(anchorId);
+}
+
+void DocumentView::rebuildHeadingPositions() const {
+  m_headingY.clear();
+  QTextDocument *doc = m_browser->document();
+  QAbstractTextDocumentLayout *lay = doc->documentLayout();
+
+  for(QTextBlock b = doc->begin(); b != doc->end(); b = b.next()) {
+    if(b.blockFormat().headingLevel() <= 0) continue;
+    // The slug we injected lands on the heading's first text fragment as an
+    // anchor name (verified against Qt's rich-text importer).
+    QString id;
+    for(QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
+      const QStringList names = it.fragment().charFormat().anchorNames();
+      if(!names.isEmpty()) {
+        id = names.first();
+        break;
+      }
+    }
+    if(id.isEmpty()) continue;
+    m_headingY.append({id, lay->blockBoundingRect(b).y()});
+  }
+  // Blocks iterate top-to-bottom, so m_headingY is already sorted by y.
+  m_headingYDirty = false;
+}
+
+QString DocumentView::currentHeadingId() const {
+  if(m_headingYDirty) rebuildHeadingPositions();
+  if(m_headingY.isEmpty()) return {};
+
+  // The scrollbar value maps to document-y, but laid-out blocks start at the
+  // document's top margin — so the first heading sits at y == documentMargin,
+  // not 0. Offset the probe by that margin (plus 1 for the exact-top case) so
+  // the first heading registers as current at scroll 0 instead of leaving the
+  // outline unhighlighted until the reader scrolls a little.
+  const qreal probe = m_browser->verticalScrollBar()->value() +
+                      m_browser->document()->documentMargin() + 1.0;
+  QString current;
+  for(const auto &[id, y] : m_headingY) {
+    if(y > probe) break;
+    current = id;
+  }
+  return current;
+}
+
+void DocumentView::onScrolled() {
+  const QString id = currentHeadingId();
+  if(id == m_lastHeadingId) return;
+  m_lastHeadingId = id;
+  emit currentHeadingChanged(id);
+}
+
+void DocumentView::applyOutlineArrangement() {
+  // insertWidget moves an existing child, so calling it for both each time
+  // re-establishes the left/right order. The browser stretches; the outline
+  // keeps its width on resize (the user can still drag the handle).
+  if(m_outlineSide == OutlineSide::Left) {
+    m_splitter->insertWidget(0, m_outline);
+    m_splitter->insertWidget(1, m_browser);
+  } else {
+    m_splitter->insertWidget(0, m_browser);
+    m_splitter->insertWidget(1, m_outline);
+  }
+  const int outlineIdx = m_outlineSide == OutlineSide::Left ? 0 : 1;
+  m_splitter->setStretchFactor(outlineIdx, 0);
+  m_splitter->setStretchFactor(1 - outlineIdx, 1);
+  m_splitter->setSizes(m_outlineSide == OutlineSide::Left
+                           ? QList<int>{m_outlineWidth, 1 << 20}
+                           : QList<int>{1 << 20, m_outlineWidth});
+}
+
+void DocumentView::setOutlineVisible(bool on) {
+  if(m_outlineVisible == on) return;
+  if(!on && m_outline->width() > 0) m_outlineWidth = m_outline->width();
+  m_outlineVisible = on;
+  m_outline->setVisible(on);
+  if(on) applyOutlineArrangement();  // restore the panel's splitter share
+
+  // Visibility is per-document runtime state — the "show outline by default"
+  // preference governs new documents, so a toggle here doesn't move it. The
+  // dragged width is still worth remembering globally.
+  QSettings().setValue(QStringLiteral("outline/width"), m_outlineWidth);
+
+  emit outlineVisibilityChanged(on);
+}
+
+void DocumentView::toggleOutlineSide() {
+  // Capture the live (possibly user-dragged) width before re-arranging, so
+  // applyOutlineArrangement() re-applies that width instead of snapping back
+  // to the remembered default.
+  if(m_outline->width() > 0) m_outlineWidth = m_outline->width();
+  m_outlineSide = m_outlineSide == OutlineSide::Left ? OutlineSide::Right
+                                                     : OutlineSide::Left;
+  m_outline->setSide(m_outlineSide);
+  applyOutlineArrangement();
+  QSettings().setValue(QStringLiteral("outline/side"),
+                       m_outlineSide == OutlineSide::Right ? 1 : 0);
 }
 
 int DocumentView::topAnchor() const {
@@ -333,7 +495,7 @@ void DocumentView::reloadFromDisk() {
   }
   QTextStream in(&file);
   in.setEncoding(QStringConverter::Utf8);
-  const QString html = mdv::markdownToHtml(in.readAll());
+  const mdv::RenderResult rendered = mdv::renderMarkdown(in.readAll());
 
   // Capture the view state before swapping. The anchor is a character offset
   // into the current rendered text; oldText is that same text (so the diff in
@@ -343,7 +505,13 @@ void DocumentView::reloadFromDisk() {
   const int anchor = topAnchor();
   const QString oldText = m_browser->document()->toPlainText();
 
-  m_browser->setHtml(html);
+  m_browser->setHtml(rendered.html);
+  m_headings = rendered.headings;
+  m_headingYDirty = true;
+  // Match loadFile: reset so the documentSizeChanged → onScrolled chain emits a
+  // fresh current-heading instead of briefly clearing the outline selection.
+  m_lastHeadingId.clear();
+  emit headingsChanged();
 
   const QString newText = m_browser->document()->toPlainText();
   scrollToAnchor(remapAnchor(anchor, oldText, newText));
