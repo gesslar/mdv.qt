@@ -1,0 +1,62 @@
+{
+  "name": "Sky diving",
+  "type": "light",
+
+  "spacing": {
+    "paragraph":   "1em",
+    "heading":     "1.5em",
+    "list.indent": "1.5em",
+    "table.cell":  "1em",
+    "block.pad":   "1em",
+    "block.indent": "1em"
+  },
+
+  "weights": {
+    "heading":     "300"
+  },
+
+  "colors": {
+    "text.foreground":          "#2a2a2a",
+    "text.background":          "#e1e1e1",
+
+    "heading.foreground":       "#2a8a8a",
+    "heading.border":           "#2a8a8a66",
+
+    "link.foreground":          "#2a8a8a",
+
+    "code.foreground":          "#2a2a2a",
+    "code.background":          "#2a8a8a26",
+    "code.border":              "#2a8a8abf",
+    "code.inline.background":   "#2a8a8a33",
+    "code.inline.outline":      "#2a8a8a66",
+
+    "blockquote.foreground":    "#2a2a2a",
+    "blockquote.border":        "#2a8a8a",
+    "blockquote.background":    "#2a8a8a99",
+
+    "table.border":             "#2a8a8abf",
+    "table.header.background":  "#2a8a8a99",
+    "table.header.foreground":  "#2a2a2a",
+
+    "hr.foreground":            "#2a8a8a26",
+
+    "syntax.keyword":           "#56748e",
+    "syntax.keyword.style":     "bold",
+    "syntax.string":            "#8f6d5f",
+    "syntax.comment":           "#4a4a4a",
+    "syntax.comment.style":     "italic",
+    "syntax.number":            "#68794e",
+    "syntax.function":          "#7d7d59",
+    "syntax.type":              "#438073",
+    "syntax.variable":          "#51798d",
+    "syntax.constant":          "#3c778f",
+    "syntax.operator":          "#6f8296",
+    "syntax.regex":             "#794a4a",
+
+    "syntax.error":             "#92443f",
+    "syntax.error.style":       "bold",
+    "syntax.warning":           "#967244",
+    "syntax.alert":             "#9a8b4e",
+    "syntax.alert.style":       "bold italic"
+  }
+}

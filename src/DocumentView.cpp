@@ -1,11 +1,13 @@
 #include "DocumentView.h"
 
 #include <algorithm>
+#include <array>
 
 #include <QAbstractTextDocumentLayout>
 #include <QColor>
 #include <QDesktopServices>
 #include <QDir>
+#include <QEvent>
 #include <QFile>
 #include <QFileInfo>
 #include <QFileSystemWatcher>
@@ -18,12 +20,14 @@
 #include <QSplitter>
 #include <QTextBlock>
 #include <QTextBrowser>
+#include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextFragment>
 #include <QTextStream>
 #include <QTimer>
 #include <QUrl>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 #include "ContentTheme.h"
 #include "EditorGroup.h"
@@ -46,6 +50,9 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   // up to the EditorGroup (which interprets them as "open this file")
   // instead of being inserted as text into the rendered document.
   m_browser->setAcceptDrops(false);
+  // Ctrl+wheel zoom is intercepted on the viewport so we can re-size headings
+  // after each zoom step (see eventFilter / applyHeadingSizes).
+  m_browser->viewport()->installEventFilter(this);
   // Apply the active content theme's stylesheet. setDefaultStyleSheet
   // persists across subsequent setHtml() calls on the same document.
   m_browser->document()->setDefaultStyleSheet(ContentTheme::active().qss());
@@ -150,6 +157,8 @@ bool DocumentView::loadFile(const QString &path) {
   // would bypass CSS by baking in QTextCharFormats during import.
   const mdv::RenderResult rendered = mdv::renderMarkdown(in.readAll());
   m_browser->setHtml(rendered.html);
+  applyHeadingSizes();
+  m_zoomAccum = 0;  // new document; drop any banked sub-notch zoom scroll
   m_headings = rendered.headings;
   m_headingYDirty = true;
   m_lastHeadingId.clear();
@@ -222,6 +231,63 @@ void DocumentView::applyDocumentPalette() {
   if(!bg.isEmpty()) p.setColor(QPalette::Base, QColor(bg));
   if(!fg.isEmpty()) p.setColor(QPalette::Text, QColor(fg));
   m_browser->setPalette(p);
+}
+
+void DocumentView::applyHeadingSizes() {
+  QTextDocument *doc = m_browser->document();
+  const qreal base = doc->defaultFont().pointSizeF();
+  if(base <= 0.0) return;  // pixel-sized font; nothing to scale from
+
+  // Descending scale, indexed by heading level 1..6. Without this, Qt's HTML
+  // importer sizes headings via a FontSizeAdjustment that both overrides any
+  // explicit size and renders h5 smaller than h6.
+  static constexpr std::array<qreal, 7> kScale = {0.0,  2.2,  1.7, 1.35,
+                                                  1.1,  0.95, 0.85};
+
+  QTextCursor cur(doc);
+  cur.beginEditBlock();
+  for(QTextBlock block = doc->begin(); block.isValid(); block = block.next()) {
+    const int level = block.blockFormat().headingLevel();
+    if(level < 1 || level > 6) continue;
+    const qreal pt = base * kScale[level];
+    // Per fragment, so inline spans inside a heading (bold, code, links) keep
+    // their other attributes; clearing the adjustment lets the absolute size
+    // we set actually win.
+    for(auto it = block.begin(); it != block.end(); ++it) {
+      const QTextFragment frag = it.fragment();
+      if(!frag.isValid()) continue;
+      QTextCharFormat fmt = frag.charFormat();
+      fmt.clearProperty(QTextFormat::FontSizeAdjustment);
+      fmt.setFontPointSize(pt);
+      cur.setPosition(frag.position());
+      cur.setPosition(frag.position() + frag.length(), QTextCursor::KeepAnchor);
+      cur.setCharFormat(fmt);
+    }
+  }
+  cur.endEditBlock();
+}
+
+bool DocumentView::eventFilter(QObject *watched, QEvent *event) {
+  if(watched == m_browser->viewport() && event->type() == QEvent::Wheel) {
+    auto *wheel = static_cast<QWheelEvent *>(event);
+    if(wheel->modifiers() & Qt::ControlModifier) {
+      // Accumulate sub-notch deltas: trackpads and hi-res mice send |delta| <
+      // 120 per event, so dividing each event by 120 would floor to 0 and never
+      // zoom. Bank the remainder and act only once a full notch has built up.
+      m_zoomAccum += wheel->angleDelta().y();
+      const int steps = m_zoomAccum / 120;
+      if(steps != 0) {
+        m_zoomAccum -= steps * 120;
+        if(steps > 0) m_browser->zoomIn(steps);
+        else m_browser->zoomOut(-steps);
+        // Zoom changes the document's default font; heading fragments carry
+        // absolute sizes that don't follow it, so re-derive them.
+        applyHeadingSizes();
+      }
+      return true;  // consume — we own Ctrl+wheel zoom
+    }
+  }
+  return QWidget::eventFilter(watched, event);
 }
 
 void DocumentView::onAnchorClicked(const QUrl &url) {
@@ -506,6 +572,8 @@ void DocumentView::reloadFromDisk() {
   const QString oldText = m_browser->document()->toPlainText();
 
   m_browser->setHtml(rendered.html);
+  applyHeadingSizes();
+  m_zoomAccum = 0;  // content swap; drop any banked sub-notch zoom scroll
   m_headings = rendered.headings;
   m_headingYDirty = true;
   // Match loadFile: reset so the documentSizeChanged → onScrolled chain emits a

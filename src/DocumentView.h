@@ -116,6 +116,11 @@ signals:
   // against this document's directory; the owner opens it as a new tab.
   void openFileRequested(const QString &path);
 
+protected:
+  // Intercept Ctrl+wheel on the browser viewport to zoom and then re-apply
+  // heading sizes (which don't scale with the default font on their own).
+  bool eventFilter(QObject *watched, QEvent *event) override;
+
 private slots:
   void onContextMenuRequested(const QPoint &pos);
   void onAnchorClicked(const QUrl &url);
@@ -146,6 +151,10 @@ private:
 
   bool m_pinned = false;
   bool m_watching = true;
+
+  // Banked Ctrl+wheel delta so sub-notch (<120) scroll events from trackpads
+  // and hi-res mice accumulate into whole zoom steps instead of flooring to 0.
+  int m_zoomAccum = 0;
 
   // Hot reload: m_watcher fires on external writes; m_reloadTimer debounces
   // the burst of events editors emit before we re-render in place.
@@ -179,6 +188,14 @@ private:
   // Re-render the file in place, preserving zoom (the font is left untouched)
   // and scroll position (remapped across the edit via remapAnchor).
   void reloadFromDisk();
+
+  // Size <h1>..<h6> from the document's default font. Qt's HTML importer
+  // stamps a relative FontSizeAdjustment on headings that overrides any
+  // explicit/CSS font-size (and orders h5 < h6); this clears that and sets an
+  // absolute point size per level. Re-run after every setHtml and after zoom,
+  // since absolute sizes don't track the default font the way the adjustment
+  // did.
+  void applyHeadingSizes();
 
   // Map a character offset from the old rendered plain text to the new one
   // using a common prefix/suffix diff: unchanged if the edit was below it,

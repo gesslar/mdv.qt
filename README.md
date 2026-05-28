@@ -10,7 +10,8 @@ A fast, minimal desktop Markdown viewer built with Qt 6 and C++.
   [KSyntaxHighlighting](https://invent.kde.org/frameworks/syntax-highlighting),
   colored from the active theme
 - **Content themes** — swappable color/spacing themes for the rendered
-  document; three dark themes bundled, and you can author your own
+  document; six bundled as three dark/light pairs, plus follow-the-system
+  light/dark switching, and you can author your own
   (see [THEMING.md](docs/THEMING.md))
 - **Tabs and splits** — open documents in tabs, split a group right or down,
   drag tabs between groups
@@ -18,8 +19,8 @@ A fast, minimal desktop Markdown viewer built with Qt 6 and C++.
 - **Recent files** — with reopen-last-closed and reopen-all
 - **Familiar shortcuts** — `Ctrl+W` close, `Ctrl+Shift+T` reopen, `Ctrl+\`
   split, `Ctrl+PgUp`/`PgDn` to cycle tabs, and more
-- **Preferences** — choose the content theme and the prose/monospace fonts;
-  `Ctrl`+scroll to zoom
+- **Preferences** — pick or import content themes (or follow the system
+  light/dark scheme), set the prose/monospace fonts; `Ctrl`+scroll to zoom
 - **CLI** — pass one or more file paths: `mdv a.md b.md`
 
 ## Building
@@ -50,8 +51,10 @@ Or drag a markdown file onto the window.
 
 Content themes control the **colors and spacing** of the rendered document
 (fonts come from Preferences, so a theme is portable across font choices).
-Three dark themes ship with mdv; authoring your own is a small JSON file —
-see **[THEMING.md](docs/THEMING.md)**.
+Six themes ship with mdv as three dark/light pairs (Blackboard/Whiteboard,
+Corporate/Sky diving, Bubblegum Goth/Cherry adjacent), and Preferences can
+follow the system light/dark scheme; authoring your own is a small JSON
+file — see **[THEMING.md](docs/THEMING.md)**.
 
 ## License
 
@@ -65,4 +68,4 @@ It builds on these components, under their own licenses:
 | [md4c](https://github.com/mity/md4c) | MIT |
 | [KSyntaxHighlighting](https://invent.kde.org/frameworks/syntax-highlighting) | MIT |
 | [QWindowKit](https://github.com/stdware/qwindowkit) (custom title bar / frameless window) | Apache-2.0 |
-| [Codicons](https://github.com/microsoft/vscode-codicons) (bundled tab icons) | MIT |
+| [Codicons](https://github.com/microsoft/vscode-codicons) (bundled UI icons) | MIT |

@@ -324,11 +324,11 @@ src/
   DocumentView.{h,cpp}      # one tab — owns a QTextBrowser and a file path
   Markdown.{h,cpp}          # md4c → HTML, with code-block post-processing
   Highlighter.{h,cpp}       # KSyntaxHighlighting → themed inline-styled spans
-  ContentTheme.{h,cpp}      # loads a theme JSON, resolves the QSS template
-  PreferencesDialog.{h,cpp} # theme + font settings
+  ContentTheme.{h,cpp}      # loads a bundled/imported theme JSON, resolves QSS
+  PreferencesDialog.{h,cpp} # theme picker/import + follow-system + font settings
 resources/
   content/content.qss.template  # structural CSS for rendered markdown
-  themes/*.content.json         # bundled content themes
+  themes/*.content.json         # bundled content themes (3 dark/light pairs)
   icons/mdv.png                 # app icon
 examples/              # showcase docs (markdown elements, syntax highlighting)
 CMakeLists.txt
@@ -340,10 +340,18 @@ docs/
 
 ## Settings & state
 
-Recent files persist via `QSettings`:
+Preferences (theme selection, follow-system toggle, prose/mono fonts, outline
+default) and recent files persist via `QSettings`:
 
 - **Linux**: `~/.config/gesslar/mdv.conf`
 - **macOS**: `~/Library/Preferences/com.gesslar.mdv.plist`
 - **Windows**: `HKEY_CURRENT_USER\Software\gesslar\mdv`
+
+Imported content themes are stored separately under the data location
+(`QStandardPaths::AppDataLocation`), created on first import:
+
+- **Linux**: `~/.local/share/gesslar/mdv/themes/`
+- **macOS**: `~/Library/Application Support/gesslar/mdv/themes/`
+- **Windows**: `%LOCALAPPDATA%\gesslar\mdv\themes\`
 
 (Organisation/application names are set in `main.cpp`.)

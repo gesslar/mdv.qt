@@ -31,14 +31,43 @@ public:
   // by the Preferences dialog to react to changes.
   void reload();
 
-  // List of bundled theme ids (e.g. "blackboard", "bubblegum-goth").
-  // Walks :/themes/ and strips the .content.json suffix.
+  // All selectable theme ids. Bundled ids first (walks :/themes/), then any
+  // user-imported ids whose stem doesn't shadow a bundled one (walks
+  // userThemesDir()). Each group is sorted; the .content.json suffix is
+  // stripped.
   static QStringList availableThemes();
 
-  // The human-readable "name" field from the bundled theme's JSON
-  // (e.g. "Blackboard" for the "blackboard" id). Falls back to the id
-  // verbatim if the JSON is missing or doesn't set a name.
-  static QString displayNameForBundled(const QString &id);
+  // The human-readable "name" field from a theme's JSON (e.g. "Blackboard"
+  // for the "blackboard" id), resolving bundled or user themes. Falls back
+  // to the id verbatim if the JSON is missing or doesn't set a name.
+  static QString displayNameFor(const QString &id);
+
+  // The "type" field ("light" or "dark") from a theme's JSON, bundled or
+  // user. Empty if unset. Used to bucket themes into the light/dark pickers.
+  static QString typeFor(const QString &id);
+
+  // True if <id> is a bundled (qrc) theme. Bundled themes are read-only:
+  // they cannot be imported over or deleted.
+  static bool isBundled(const QString &id);
+
+  // User-space themes directory (created lazily on import). On Linux this is
+  // ~/.local/share/<org>/<app>/themes (QStandardPaths::AppDataLocation).
+  static QString userThemesDir();
+
+  // Absolute path of a user theme's JSON file, whether or not it exists.
+  static QString userThemePath(const QString &id);
+
+  // Copy a theme JSON from srcPath into userThemesDir(), normalizing its
+  // name to <id>.content.json. Validates that it parses as a theme object
+  // with a non-empty "colors" section and that its id doesn't collide with
+  // a bundled theme. On success returns true and sets *outId to the imported
+  // id; on failure returns false and sets *error to a user-facing message.
+  // Overwrites an existing user theme of the same id.
+  static bool importThemeFile(const QString &srcPath, QString *outId,
+                              QString *error);
+
+  // Delete a user theme by id. No-op returning false for bundled ids.
+  static bool removeUserTheme(const QString &id);
 
   // Resolved stylesheet ready for QTextDocument::setDefaultStyleSheet.
   QString qss() const;
@@ -62,4 +91,5 @@ private:
   QString m_type;
   QHash<QString, QString> m_colors;
   QHash<QString, QString> m_spacing;
+  QHash<QString, QString> m_weights;
 };

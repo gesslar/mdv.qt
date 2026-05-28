@@ -1,0 +1,62 @@
+{
+  "name": "Cherry adjacent",
+  "type": "light",
+
+  "spacing": {
+    "paragraph":   "1em",
+    "heading":     "1.5em",
+    "list.indent": "1.5em",
+    "table.cell":  "1em",
+    "block.pad":   "1em",
+    "block.indent": "1em"
+  },
+
+  "weights": {
+    "heading":     "300"
+  },
+
+  "colors": {
+    "text.foreground":          "#2a2a2a",
+    "text.background":          "#e1e1e1",
+
+    "heading.foreground":       "#c542a0",
+    "heading.border":           "#c542a066",
+
+    "link.foreground":          "#c542a0",
+
+    "code.foreground":          "#2a2a2a",
+    "code.background":          "#c542a026",
+    "code.border":              "#c542a0bf",
+    "code.inline.background":   "#c542a033",
+    "code.inline.outline":      "#c542a066",
+
+    "blockquote.foreground":    "#2a2a2a",
+    "blockquote.border":        "#c542a0",
+    "blockquote.background":    "#c542a099",
+
+    "table.border":             "#c542a0bf",
+    "table.header.background":  "#c542a099",
+    "table.header.foreground":  "#2a2a2a",
+
+    "hr.foreground":            "#c542a026",
+
+    "syntax.keyword":           "#56748e",
+    "syntax.keyword.style":     "bold",
+    "syntax.string":            "#8f6d5f",
+    "syntax.comment":           "#4a4a4a",
+    "syntax.comment.style":     "italic",
+    "syntax.number":            "#68794e",
+    "syntax.function":          "#7d7d59",
+    "syntax.type":              "#438073",
+    "syntax.variable":          "#51798d",
+    "syntax.constant":          "#3c778f",
+    "syntax.operator":          "#6f8296",
+    "syntax.regex":             "#794a4a",
+
+    "syntax.error":             "#92443f",
+    "syntax.error.style":       "bold",
+    "syntax.warning":           "#967244",
+    "syntax.alert":             "#9a8b4e",
+    "syntax.alert.style":       "bold italic"
+  }
+}
