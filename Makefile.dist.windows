@@ -31,12 +31,28 @@
 # Windows format today, so it just maps to `make windows`.
 dist: windows
 
-# `make windows` — the Windows release verb (parallels `make linux`). Re-configure
+# `make windows` — the Windows release verb (parallels `make linux`). Configure
 # the release tree with MDV_PACKAGE_OUTPUT_DIR pointing at our DIST_DIR (otherwise
 # the artifact lands inside the build dir), then drive the package_nsis custom
 # target: it stages the install tree via `cmake --install` and runs makensis on
 # the generated mdv.nsi.
-windows: release
+#
+# The .mdv-windows-configured stamp file gates the reconfigure — we set
+# MDV_PACKAGE_OUTPUT_DIR exactly once into the release tree's CMakeCache.txt;
+# subsequent `make windows` invocations skip the cmake configure and go
+# straight to package_nsis. A re-run of cmake configure on an otherwise-clean
+# tree would re-touch enough metadata in the FetchContent'd KSH tree to make
+# ninja relink everything, the same way `make build` used to. `make distclean`
+# removes the stamp, so the gate auto-resets when the tree is wiped.
+#
+# `release` is an order-only prereq (the `|` separator): we want it to run
+# first if needed, but we don't want a phony's "always dirty" status to force
+# the stamp file to regenerate every invocation. `cmake -E touch` instead of
+# the unix `touch` so this works under cmd.exe as well as sh.
+windows: $(RELEASE_DIR)/.mdv-windows-configured
+	cmake --build $(RELEASE_DIR) --target package_nsis
+
+$(RELEASE_DIR)/.mdv-windows-configured: | release
 	cmake -S . -B $(RELEASE_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release \
 	    -DMDV_PACKAGE_OUTPUT_DIR=$(CURDIR)/$(DIST_DIR) $(PREFIX_FLAG)
-	cmake --build $(RELEASE_DIR) --target package_nsis
+	cmake -E touch $@

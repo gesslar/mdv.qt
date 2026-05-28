@@ -64,4 +64,5 @@ It builds on these components, under their own licenses:
 | [Qt 6](https://www.qt.io/) (Widgets) | LGPL-3.0 |
 | [md4c](https://github.com/mity/md4c) | MIT |
 | [KSyntaxHighlighting](https://invent.kde.org/frameworks/syntax-highlighting) | MIT |
+| [QWindowKit](https://github.com/stdware/qwindowkit) (custom title bar / frameless window) | Apache-2.0 |
 | [Codicons](https://github.com/microsoft/vscode-codicons) (bundled tab icons) | MIT |

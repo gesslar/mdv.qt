@@ -53,13 +53,34 @@ all: build
 # Dev build (build/): no optimization, debug symbols, assertions on.
 # CMAKE_EXPORT_COMPILE_COMMANDS writes build/compile_commands.json so
 # clangd / Qt Creator can resolve Qt + KSyntaxHighlighting includes.
+#
+# We only run `cmake -S . -B …` (the configure step) when the build dir hasn't
+# been configured yet. Once build.ninja exists, `cmake --build` calls ninja
+# directly, and ninja's RERUN_CMAKE rule self-reconfigures whenever any tracked
+# CMakeLists.txt / .cmake file changes — so subsequent `make`s are no-ops when
+# nothing's changed. Re-invoking configure unconditionally would re-touch enough
+# metadata in the FetchContent'd KSH tree to make ninja re-run the
+# katehighlightingindexer, which cascades into a relink of everything.
+# Switching build flags (PREFIX_PATH, etc.) means `make distclean` first.
+#
+# The gate uses Make's built-in $(wildcard …) — evaluated at Makefile parse
+# time, no shell involved — so it works identically whether make's shell is sh
+# (Linux/macOS, or PowerShell+sh-on-PATH on Windows) or cmd.exe (Windows
+# default). An earlier `test -f … ||` version silently failed open on cmd,
+# since cmd has no `test` builtin and treated its absence as "false" — running
+# the configure every time, which was the whole problem we set out to fix.
 build:
+ifeq (,$(wildcard $(DEV_DIR)/build.ninja))
 	cmake -S . -B $(DEV_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug $(PREFIX_FLAG) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+endif
 	cmake --build $(DEV_DIR)
 
 # Release build (build-release/): optimized, assertions off. What you ship.
+# Same one-shot-configure pattern as `build` above — see the comment there.
 release:
+ifeq (,$(wildcard $(RELEASE_DIR)/build.ninja))
 	cmake -S . -B $(RELEASE_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release $(PREFIX_FLAG)
+endif
 	cmake --build $(RELEASE_DIR)
 
 # Build the dev binary if needed, then launch it.
