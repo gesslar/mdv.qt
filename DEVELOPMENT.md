@@ -136,8 +136,8 @@ the link line if you add a library. RPM `Requires:` are auto-detected by
 
 A single-file `.flatpak` is built with `flatpak-builder` against the KDE runtime
 (`org.kde.Platform` 6.9), which already ships Qt 6 and KSyntaxHighlighting — so
-only md4c is built alongside mdv. The manifest `dev.gesslar.mdv.yml` builds
-straight from this checkout (no pushed tag required).
+the only externals built alongside mdv are md4c and QWindowKit. The manifest
+`dev.gesslar.mdv.yml` builds straight from this checkout (no pushed tag required).
 
 ```bash
 make flatpak   # → dist/mdv-<version>-<arch>.flatpak
@@ -160,6 +160,26 @@ flatpak run dev.gesslar.mdv                 # run/install are by app-id, not fil
 
 For a Flathub submission, repoint the `mdv` module source from this local
 checkout to a pinned remote (url + tag + commit).
+
+> **Why QWindowKit needs special handling in the manifest.** mdv pulls
+> QWindowKit via CMake `FetchContent`, which clones from GitHub *at configure
+> time*. That's fine for the `.deb`/`.rpm`/`.AppImage` builds, but
+> flatpak-builder runs its build in a **network-isolated sandbox** — the clone
+> dies with `Could not resolve host: github.com`. So the manifest pre-fetches
+> QWindowKit as a `git` source during flatpak-builder's network-enabled
+> download phase (submodules included — QWindowKit carries `qmsetup`) and points
+> `FETCHCONTENT_SOURCE_DIR_QWINDOWKIT` at that checkout so the in-sandbox
+> configure skips the clone.
+>
+> A second, subtler wrinkle: QWindowKit configure-time-builds `qmsetup` into a
+> private tree, then `find_package`s it back from
+> `<prefix>/${CMAKE_INSTALL_LIBDIR}`. flatpak-builder forces
+> `CMAKE_INSTALL_LIBDIR=lib` on the module, but that qmsetup sub-build is a
+> separate `cmake` run flatpak-builder doesn't touch — on the (non-Debian) KDE
+> SDK its GNUInstallDirs defaults to `lib64`, so the lookup misses under `lib`.
+> The manifest pins the module to `lib64` so both halves agree (harmless: mdv
+> installs only to `bin/` and `share/`, never libdir). Full detail lives in the
+> comments in `dev.gesslar.mdv.yml`.
 
 ### AppImage
 
