@@ -55,6 +55,12 @@ endif()
 # suppress Qt's per-module "you are using a private module" advisory rather than
 # have it fire three times on every configure.
 set(QT_NO_PRIVATE_MODULE_WARNING ON)
+# Qt6Gui's exported config does find_dependency(WrapVulkanHeaders), which prints
+# a "Could NOT find WrapVulkanHeaders" warning on boxes without the Vulkan SDK
+# even though Qt builds & runs fine without it (it's an optional Vulkan-QPA
+# integration). We never touch Qt's Vulkan path, so skip the find_package
+# probe — the warning goes away and Qt links exactly the same.
+set(CMAKE_DISABLE_FIND_PACKAGE_WrapVulkanHeaders ON)
 find_package(Qt6 6.5 REQUIRED
     COMPONENTS Widgets CorePrivate GuiPrivate WidgetsPrivate)
 
@@ -139,12 +145,38 @@ if(WIN32)
     # need it, and skipping the find_package avoids a "not found" warning on
     # boxes without it. Translations + the katehighlightingindexer build and
     # run natively here, so they don't need disabling.
-    #
-    # KSH's CMakeLists also hard-codes add_subdirectory(examples) and
-    # add_subdirectory(src/cli) with no off-switch — they build alongside the
-    # library. They don't affect the mdv.exe link and their install() rules
-    # are suppressed below, so we just absorb the extra build time.
     set(CMAKE_DISABLE_FIND_PACKAGE_XercesC ON CACHE BOOL "" FORCE)
+
+    # Trim KSH down to just the library + indexer (the parts we link against /
+    # need at build time). Three knobs:
+    #   1. Qt6Quick disabled → no kquicksyntaxhighlightingplugin (a QML plugin
+    #      we never load). This also silences three -Wmissing-include-dirs
+    #      warnings the plugin's autogen emits during compile.
+    #   2. DISABLE_ALL_OPTIONAL_SUBDIRECTORIES → KSH's examples/ subtrees
+    #      (codeeditor, codepdfprinter, minimaltest) default OFF via ECM's
+    #      ecm_optional_add_subdirectory. Speeds up clean builds; removes noise.
+    #   3. KDE_INSTALL_* preseeded from Qt's GNUInstallDirs values to head off
+    #      KDEInstallDirs' four "got its value from CMAKE_INSTALL_*DIR" warnings
+    #      (Qt's find_package(Qt6) includes GNUInstallDirs first, then KSH's
+    #      include(KDEInstallDirs) flags the cross-include). The defines exist
+    #      because of that order, so just adopt them explicitly.
+    # The ksyntaxhighlighter6 CLI executable still builds (no upstream off-
+    # switch and it's warning-free), but it's not linked into mdv.exe and its
+    # install() rules are suppressed.
+    set(CMAKE_DISABLE_FIND_PACKAGE_Qt6Quick ON CACHE BOOL "" FORCE)
+    set(DISABLE_ALL_OPTIONAL_SUBDIRECTORIES ON CACHE BOOL "" FORCE)
+    # ECM's KDEFrameworkCompilerSettings probes for Sphinx (KSH doc builder).
+    # We're not building KSH's docs, so skip the probe — silences the
+    # "Could NOT find Sphinx" line on every configure.
+    set(CMAKE_DISABLE_FIND_PACKAGE_Sphinx ON CACHE BOOL "" FORCE)
+    include(GNUInstallDirs)
+    foreach(_dir BINDIR SBINDIR LIBEXECDIR SYSCONFDIR SHAREDSTATEDIR
+                 LOCALSTATEDIR RUNSTATEDIR LIBDIR INCLUDEDIR OLDINCLUDEDIR
+                 DATAROOTDIR DATADIR INFODIR LOCALEDIR MANDIR DOCDIR)
+        if(NOT DEFINED KDE_INSTALL_${_dir} AND DEFINED CMAKE_INSTALL_${_dir})
+            set(KDE_INSTALL_${_dir} "${CMAKE_INSTALL_${_dir}}" CACHE PATH "")
+        endif()
+    endforeach()
 
     # --- extra-cmake-modules ----------------------------------------------
     #
@@ -168,14 +200,22 @@ if(WIN32)
         if(NOT EXISTS "${_ecm_src}/CMakeLists.txt")
             find_package(Git REQUIRED)
             file(REMOVE_RECURSE "${_ecm_src}")
+            # OUTPUT/ERROR_VARIABLE swallow git's progress chatter (the
+            # "Cloning into ..." + detached-HEAD note + the harmless
+            # "refs/tags/v6.26.0 <sha> is not a commit!" warning that git
+            # emits on a shallow clone of an annotated-tag ref). On a real
+            # failure we surface the captured output via FATAL_ERROR.
             execute_process(
-                COMMAND "${GIT_EXECUTABLE}" clone --depth 1
+                COMMAND "${GIT_EXECUTABLE}" clone --depth 1 --no-tags
                     --branch v6.26.0
                     https://invent.kde.org/frameworks/extra-cmake-modules.git
                     "${_ecm_src}"
+                OUTPUT_VARIABLE _ecm_clone_log
+                ERROR_VARIABLE _ecm_clone_log
                 RESULT_VARIABLE _ecm_clone)
             if(NOT _ecm_clone EQUAL 0)
-                message(FATAL_ERROR "ECM clone failed (exit ${_ecm_clone})")
+                message(FATAL_ERROR
+                    "ECM clone failed (exit ${_ecm_clone}):\n${_ecm_clone_log}")
             endif()
         endif()
         execute_process(
@@ -184,6 +224,11 @@ if(WIN32)
                 -G "${CMAKE_GENERATOR}"
                 "-DCMAKE_INSTALL_PREFIX=${ECM_LOCAL_PREFIX}"
                 -DBUILD_TESTING=OFF
+                # ECM is a "no compile" pure-CMake project, so it has no need
+                # to probe for Sphinx (or anything else doc-related); skip the
+                # find_package(Sphinx) inside its own configure to stop the
+                # "Could NOT find Sphinx" line from bleeding into our log.
+                -DCMAKE_DISABLE_FIND_PACKAGE_Sphinx=ON
             RESULT_VARIABLE _ecm_cfg)
         if(NOT _ecm_cfg EQUAL 0)
             message(FATAL_ERROR "ECM configure failed (exit ${_ecm_cfg})")
@@ -270,6 +315,20 @@ FetchContent_Declare(
     GIT_SHALLOW TRUE
 )
 FetchContent_MakeAvailable(QWindowKit)
+
+# Quiet the two -Wdeprecated-declarations from QWKCore's win32windowcontext.cpp
+# (QSurface::RasterGLSurface — Qt 6.11 deprecated it in favour of RasterSurface).
+# Upstream QWindowKit hasn't tracked the rename in 1.5.0; we don't touch the
+# source ourselves, so just suppress the warning on the third-party targets
+# instead of patching the FetchContent'd tree. Drop this once we move to a
+# QWindowKit release that retires RasterGLSurface.
+foreach(_qwk_tgt QWKCore QWKWidgets)
+    if(TARGET ${_qwk_tgt})
+        target_compile_options(${_qwk_tgt} PRIVATE
+            $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wno-deprecated-declarations>
+            $<$<CXX_COMPILER_ID:MSVC>:/wd4996>)
+    endif()
+endforeach()
 
 qt_standard_project_setup()
 
