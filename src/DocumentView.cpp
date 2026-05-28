@@ -152,6 +152,17 @@ bool DocumentView::loadFile(const QString &path) {
 
   QTextStream in(&file);
   in.setEncoding(QStringConverter::Utf8);
+
+  // Resolve inline images relative to the document's own directory. md4c emits
+  // ![alt](pic.png) as <img src="pic.png">; QTextBrowser asks loadResource to
+  // fetch each src, and for a relative path it joins it onto a search path. We
+  // feed HTML via setHtml() (not setSource), so there's no document source to
+  // resolve against — without this, relative image srcs would never load.
+  // Absolute paths and file:// URLs are handled by Qt directly. Set before
+  // setHtml() so the resources are findable during the layout pass it kicks off.
+  const QFileInfo info(path);
+  m_browser->setSearchPaths({info.absolutePath()});
+
   // Render markdown → HTML externally (via md4c) and feed setHtml, so
   // the document's default stylesheet actually applies. setMarkdown
   // would bypass CSS by baking in QTextCharFormats during import.
@@ -175,7 +186,6 @@ bool DocumentView::loadFile(const QString &path) {
 
   // canonicalFilePath() returns "" for non-existent files; that shouldn't
   // happen here (we just read it) but fall back defensively.
-  const QFileInfo info(path);
   m_filePath = info.canonicalFilePath();
   if(m_filePath.isEmpty()) m_filePath = info.absoluteFilePath();
 
@@ -571,6 +581,12 @@ void DocumentView::reloadFromDisk() {
   const int anchor = topAnchor();
   const QString oldText = m_browser->document()->toPlainText();
 
+  // Restate the image search path before this setHtml(), mirroring loadFile().
+  // The path persists on m_browser across reloads (the same m_filePath is
+  // always reloaded), so this is belt-and-suspenders today — but it keeps the
+  // hot-reload self-contained, so a future change that clears or repoints the
+  // search paths can't silently break image loading on reload only.
+  m_browser->setSearchPaths({QFileInfo(m_filePath).absolutePath()});
   m_browser->setHtml(rendered.html);
   applyHeadingSizes();
   m_zoomAccum = 0;  // content swap; drop any banked sub-notch zoom scroll

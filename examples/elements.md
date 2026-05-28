@@ -23,6 +23,17 @@ A second paragraph follows the first to show paragraph spacing. Lorem ipsum
 dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt
 ut labore et dolore magna aliqua.
 
+## Images
+
+A local image, resolved relative to this document's folder:
+
+![The mdv logo](mdv-logo.png)
+
+An image inside a link (click-through to a target), and an inline image ![the
+mdv logo](mdv-logo.png) sitting within a line of prose:
+
+[![The mdv logo, linked](mdv-logo.png)](https://example.com)
+
 ## Lists
 
 Unordered, with nesting:
