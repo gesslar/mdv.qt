@@ -3,14 +3,15 @@
 How a rendered Markdown document gets its styling. This is developer-facing
 internals; for *authoring* a theme, see [`THEMING.md`](THEMING.md).
 
-## Three channels (and why)
+## Four channels (and why)
 
 No single Qt mechanism styles the whole document, so the styling is assembled
-across three, each chosen to work around a QTextDocument/QTextBrowser quirk:
+across four, each chosen to work around a QTextDocument/QTextBrowser quirk:
 
 1. **Element CSS** → `QTextDocument::setDefaultStyleSheet(ContentTheme::qss())`.
-   Headings, code, tables, lists, blockquotes, rules, links. Persists across
-   subsequent `setHtml()` calls.
+   Headings, code, tables, lists, blockquotes, rules, links — borders, spacing,
+   color, font-weight. Persists across subsequent `setHtml()` calls. (Heading
+   *font-size* is the exception — see channel 4.)
 2. **Prose font** → `QTextDocument::setDefaultFont()`. A CSS `body { font-family }`
    doesn't propagate: the md4c HTML fragment has no real `<body>` to bind to, and
    Qt routes the document font through the default `QFont`, not CSS. Set as a
@@ -18,9 +19,16 @@ across three, each chosen to work around a QTextDocument/QTextBrowser quirk:
 3. **Page background + default text color** → `QPalette::Base` / `QPalette::Text`
    on the browser. `body { background-color }` doesn't paint the widget viewport;
    QTextBrowser paints it from the palette.
+4. **Heading sizes** → per-fragment `QTextCharFormat` in
+   `DocumentView::applyHeadingSizes()`. Qt's HTML importer stamps a relative
+   `FontSizeAdjustment` on `<h1>`–`<h6>` that overrides CSS `font-size` (and
+   orders h5 < h6), so the size scale is set in code, clearing that adjustment.
 
-All three are applied in `DocumentView`'s constructor and re-applied in
-`DocumentView::refresh()`, which Preferences calls after a theme/font change.
+Channels 1–3 are applied in `DocumentView`'s constructor and re-applied in
+`DocumentView::refresh()` (Preferences calls it after a theme/font change).
+Channel 4 runs after every `setHtml()` and again on `Ctrl`+wheel zoom, since
+the absolute sizes it sets don't track the default font the way the adjustment
+did.
 
 ## HTML post-processing
 
@@ -61,6 +69,7 @@ by prefix:
 | ------------ | ----------------------------------- | ----- |
 | `fonts.*`    | `QSettings` (`fontValue()`)         | Set in Preferences |
 | `spacing.*`  | theme JSON `spacing` section        | CSS length strings |
+| `weights.*`  | theme JSON `weights` section        | CSS `font-weight` strings; `heading` defaults to `200` |
 | *(anything else)* | theme JSON `colors` section    | run through `coerceColor` / `compositeOver` |
 
 ### `fonts.*` → QSettings
@@ -118,4 +127,4 @@ Opaque inputs pass through unchanged.
 - `resources/content/content.qss.template` — structural CSS + `@{…}` slots
 - `src/ContentTheme.{h,cpp}` — `resolveKey`, `coerceColor`, `compositeOver`, `qss()`
 - `src/Markdown.cpp` — md4c render + HTML post-processing (table wrapping, highlight pass)
-- `src/DocumentView.cpp` — applies the three channels (stylesheet / font / palette)
+- `src/DocumentView.cpp` — applies the four channels (stylesheet / font / palette / heading sizes)

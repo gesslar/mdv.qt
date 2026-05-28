@@ -23,17 +23,22 @@ h1 {
   color: @{heading.foreground};
   border-bottom: 1px solid @{heading.border};
   padding-bottom: 0.3em;
-  font-weight: 200;
+  font-weight: @{weights.heading};
   letter-spacing: 0.125rem;
   margin-top: @{spacing.heading};
 }
 
 h2, h3, h4, h5, h6 {
   color: @{heading.foreground};
-  font-weight: 200;
+  font-weight: @{weights.heading};
   letter-spacing: 0.1rem;
   margin-top: @{spacing.heading};
 }
+
+/* Heading font-size is NOT set here: Qt's HTML importer stamps a relative
+ * FontSizeAdjustment on <h1>..<h6> that overrides any CSS font-size (and orders
+ * h5 < h6). Sizes are applied in code instead — see DocumentView::
+ * applyHeadingSizes(). font-weight/color/etc. above still work via CSS. */
 
 p {
   margin: @{spacing.paragraph} 0;

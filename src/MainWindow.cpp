@@ -203,6 +203,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
           [this](Qt::ColorScheme) {
             refreshStatusBarStyle();
+            // When following the system scheme, the active content theme
+            // tracks it — reload and re-render every open document.
+            if(QSettings()
+                   .value(QStringLiteral("theme/followSystem"), false)
+                   .toBool()) {
+              onPreferencesApplied();
+            }
           });
   statusBar()->addWidget(m_statusButton);
 

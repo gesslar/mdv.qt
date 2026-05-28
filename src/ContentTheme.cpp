@@ -1,16 +1,20 @@
 #include "ContentTheme.h"
 
 #include <QColor>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QRegularExpression>
 #include <QSet>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QStringList>
+#include <QStyleHints>
 
 namespace {
 
@@ -77,6 +81,21 @@ QString compositeOver(const QString &fg, const QString &bg) {
       .name(QColor::HexRgb);
 }
 
+// Parse a theme's JSON object (bundled qrc or user dir). Returns an empty
+// object if the file is missing or unparseable.
+QJsonObject themeJson(const QString &id) {
+  const QString path = ContentTheme::isBundled(id)
+                           ? QStringLiteral(":/themes/%1.content.json").arg(id)
+                           : ContentTheme::userThemePath(id);
+  QFile f(path);
+  if(!f.open(QIODevice::ReadOnly | QIODevice::Text)) return {};
+
+  QJsonParseError err{};
+  const auto doc = QJsonDocument::fromJson(f.readAll(), &err);
+  if(err.error != QJsonParseError::NoError || !doc.isObject()) return {};
+  return doc.object();
+}
+
 }  // namespace
 
 bool ContentTheme::loadBundled(const QString &name) {
@@ -96,6 +115,7 @@ bool ContentTheme::loadFile(const QString &path) {
   m_type = root.value("type").toString();
   m_colors = flatten(root.value("colors").toObject());
   m_spacing = flatten(root.value("spacing").toObject());
+  m_weights = flatten(root.value("weights").toObject());
   return true;
 }
 
@@ -151,6 +171,14 @@ QString ContentTheme::resolveKey(const QString &key) const {
     return m_spacing.value(key.mid(8));  // strip "spacing."
   }
 
+  if(key.startsWith(QStringLiteral("weights."))) {
+    QString v = m_weights.value(key.mid(8));  // strip "weights."
+    if(!v.isEmpty()) return v;
+    // Default so the stylesheet never emits `font-weight: ;`. 200 keeps the
+    // app's thin-heading look — fine on dark; light themes set it heavier.
+    return QStringLiteral("200");
+  }
+
   // Block-fill backgrounds get flattened onto the page color: the document
   // engine paints them per text-line and a translucent fill seams at the
   // overlaps. Authors can still use alpha here; it just renders opaque.
@@ -190,13 +218,34 @@ QString ContentTheme::qss() const {
 }
 
 void ContentTheme::reload() {
-  const QString name =
-      QSettings()
-          .value(QStringLiteral("theme/content"), QStringLiteral("blackboard"))
-          .toString();
-  if(loadBundled(name)) return;
+  QSettings s;
 
-  qWarning("ContentTheme: failed to load bundled theme '%s'", qPrintable(name));
+  // When following the system, the active theme is chosen by the OS color
+  // scheme (Unknown counts as dark). Otherwise it's the single manual pick.
+  QString name;
+  if(s.value(QStringLiteral("theme/followSystem"), false).toBool()) {
+    const bool light = QGuiApplication::styleHints()->colorScheme() ==
+                       Qt::ColorScheme::Light;
+    name = light ? s.value(QStringLiteral("theme/light"),
+                           QStringLiteral("whiteboard"))
+                       .toString()
+                 : s.value(QStringLiteral("theme/dark"),
+                           QStringLiteral("blackboard"))
+                       .toString();
+  } else {
+    name = s.value(QStringLiteral("theme/content"),
+                   QStringLiteral("blackboard"))
+               .toString();
+  }
+
+  // Bundled ids resolve from the qrc; everything else is a user import on
+  // disk (e.g. a theme the user deleted out from under the setting falls
+  // through to the fallback below).
+  const bool ok =
+      isBundled(name) ? loadBundled(name) : loadFile(userThemePath(name));
+  if(ok) return;
+
+  qWarning("ContentTheme: failed to load theme '%s'", qPrintable(name));
 
   // Fall back to the canonical default so the document still renders
   // with a sensible theme rather than an empty stylesheet (which would
@@ -207,25 +256,118 @@ void ContentTheme::reload() {
 }
 
 QStringList ContentTheme::availableThemes() {
-  QStringList names;
+  QStringList bundledNames;
   QDir bundled(QStringLiteral(":/themes"));
-  const auto files =
+  const auto bundledFiles =
       bundled.entryInfoList({QStringLiteral("*.content.json")}, QDir::Files);
-  for(const QFileInfo &fi : files) names << fi.baseName();
-  names.sort();
-  return names;
+  for(const QFileInfo &fi : bundledFiles) bundledNames << fi.baseName();
+  bundledNames.sort();
+
+  const QSet<QString> bundledSet(bundledNames.begin(), bundledNames.end());
+
+  QStringList userNames;
+  QDir userDir(userThemesDir());
+  if(userDir.exists()) {
+    const auto userFiles =
+        userDir.entryInfoList({QStringLiteral("*.content.json")}, QDir::Files);
+    for(const QFileInfo &fi : userFiles) {
+      // A user file whose stem shadows a bundled id is hidden — the bundled
+      // theme is authoritative (importThemeFile rejects such collisions, so
+      // this only fires for files dropped in by hand).
+      if(!bundledSet.contains(fi.baseName())) userNames << fi.baseName();
+    }
+  }
+  userNames.sort();
+
+  return bundledNames + userNames;
 }
 
-QString ContentTheme::displayNameForBundled(const QString &id) {
-  QFile f(QStringLiteral(":/themes/%1.content.json").arg(id));
-  if(!f.open(QIODevice::ReadOnly | QIODevice::Text)) return id;
-
-  QJsonParseError err{};
-  const auto doc = QJsonDocument::fromJson(f.readAll(), &err);
-  if(err.error != QJsonParseError::NoError || !doc.isObject()) return id;
-
-  const QString name = doc.object().value(QStringLiteral("name")).toString();
+QString ContentTheme::displayNameFor(const QString &id) {
+  const QString name = themeJson(id).value(QStringLiteral("name")).toString();
   return name.isEmpty() ? id : name;
+}
+
+QString ContentTheme::typeFor(const QString &id) {
+  return themeJson(id).value(QStringLiteral("type")).toString();
+}
+
+bool ContentTheme::isBundled(const QString &id) {
+  return QFile::exists(QStringLiteral(":/themes/%1.content.json").arg(id));
+}
+
+QString ContentTheme::userThemesDir() {
+  return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+         QStringLiteral("/themes");
+}
+
+QString ContentTheme::userThemePath(const QString &id) {
+  return QStringLiteral("%1/%2.content.json").arg(userThemesDir(), id);
+}
+
+bool ContentTheme::importThemeFile(const QString &srcPath, QString *outId,
+                                   QString *error) {
+  const auto fail = [&](const QString &msg) {
+    if(error) *error = msg;
+    return false;
+  };
+
+  QFile in(srcPath);
+  if(!in.open(QIODevice::ReadOnly | QIODevice::Text))
+    return fail(QCoreApplication::translate(
+        "ContentTheme", "Could not read the selected file."));
+
+  QJsonParseError perr{};
+  const auto doc = QJsonDocument::fromJson(in.readAll(), &perr);
+  if(perr.error != QJsonParseError::NoError || !doc.isObject())
+    return fail(QCoreApplication::translate(
+        "ContentTheme", "Not a valid theme: expected a JSON object."));
+  const QJsonObject obj = doc.object();
+  if(obj.value(QStringLiteral("colors")).toObject().isEmpty())
+    return fail(QCoreApplication::translate(
+        "ContentTheme", "Not a valid theme: missing a \"colors\" section."));
+  const QString type = obj.value(QStringLiteral("type")).toString();
+  if(type != QStringLiteral("light") && type != QStringLiteral("dark"))
+    return fail(QCoreApplication::translate(
+        "ContentTheme", R"(Theme must set "type" to "light" or "dark".)"));
+
+  const QString id = QFileInfo(srcPath).baseName();
+  if(id.isEmpty())
+    return fail(QCoreApplication::translate(
+        "ContentTheme", "Could not derive a theme name from the file."));
+  if(isBundled(id))
+    return fail(QCoreApplication::translate(
+        "ContentTheme",
+        "A bundled theme already uses the name \"%1\". Rename the file and "
+        "try again.")
+                    .arg(id));
+
+  QDir dir(userThemesDir());
+  if(!dir.exists() && !dir.mkpath(QStringLiteral(".")))
+    return fail(QCoreApplication::translate(
+        "ContentTheme", "Could not create the themes directory."));
+
+  const QString dest = userThemePath(id);
+  // If the source already IS the destination — e.g. the user opened the themes
+  // folder and re-imported a file straight from there — it's already in place.
+  // Skip the remove+copy: removing dest would delete srcPath (same file), then
+  // the copy would fail, destroying the theme.
+  if(QFileInfo(srcPath).canonicalFilePath() !=
+     QFileInfo(dest).canonicalFilePath()) {
+    if(QFile::exists(dest) && !QFile::remove(dest))
+      return fail(QCoreApplication::translate(
+          "ContentTheme", "Could not overwrite the existing theme."));
+    if(!QFile::copy(srcPath, dest))
+      return fail(QCoreApplication::translate(
+          "ContentTheme", "Could not copy the theme into place."));
+  }
+
+  if(outId) *outId = id;
+  return true;
+}
+
+bool ContentTheme::removeUserTheme(const QString &id) {
+  if(isBundled(id)) return false;  // bundled themes are read-only
+  return QFile::remove(userThemePath(id));
 }
 
 ContentTheme &ContentTheme::active() {

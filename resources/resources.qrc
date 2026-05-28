@@ -5,6 +5,9 @@
     <file>content/content.qss.template</file>
     <file>themes/blackboard.content.json</file>
     <file>themes/bubblegum-goth.content.json</file>
+    <file>themes/cherry-adjacent.content.json</file>
     <file>themes/corporate.content.json</file>
+    <file>themes/sky-diving.content.json</file>
+    <file>themes/whiteboard.content.json</file>
   </qresource>
 </RCC>

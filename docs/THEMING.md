@@ -2,7 +2,8 @@
 
 A **content theme** controls the *colors and spacing* of rendered Markdown —
 prose, headings, tables, blockquotes, code blocks, and syntax highlighting.
-It's a small JSON file; no rebuild is needed to switch between bundled themes.
+It's a small JSON file; no rebuild is needed to switch themes or to add your
+own (import a JSON file — see below).
 
 What a theme does **not** control, by design:
 
@@ -17,13 +18,23 @@ What a theme does **not** control, by design:
 
 ## Where themes live and how they're selected
 
-- Bundled themes are `resources/themes/<id>.content.json`, registered in
-  `resources/resources.qrc`.
-- The **id** is the filename minus `.content.json` (e.g. `blackboard`). The
-  **display name** shown in Preferences is the JSON `name` field.
-- The active theme is chosen in **File → Preferences** and stored in QSettings
-  (`theme/content`, default `blackboard`). Changing it re-renders every open
-  document immediately.
+- **Bundled** themes are `resources/themes/<id>.content.json`, registered in
+  `resources/resources.qrc` and compiled into the binary.
+- **Imported** themes live in a per-user folder, created on first import (open
+  it from **File → Preferences → Open themes folder**):
+  - Linux: `~/.local/share/gesslar/mdv/themes/`
+  - macOS: `~/Library/Application Support/gesslar/mdv/themes/`
+  - Windows: `%LOCALAPPDATA%\gesslar\mdv\themes\`
+- The **id** is the filename minus `.content.json` (e.g. `blackboard`); the
+  **display name** in Preferences is the JSON `name` field. A bundled id wins
+  over an imported one of the same name.
+- Selection lives in **File → Preferences** and persists in QSettings, and any
+  change re-renders every open document immediately:
+  - **Follow system color scheme** *off* → a single picker; that theme is used
+    always (`theme/content`, default `blackboard`).
+  - Follow system *on* → separate **Preferred light** / **Preferred dark**
+    pickers (each filtered to themes of that `type`); the OS scheme decides
+    which one renders (`theme/light` / `theme/dark`).
 
 ## File structure
 
@@ -41,6 +52,10 @@ What a theme does **not** control, by design:
     "block.indent": "1em"
   },
 
+  "weights": {
+    "heading": "300"
+  },
+
   "colors": {
     "text.foreground": "#bebebe",
     "text.background": "#0f0f0f"
@@ -50,8 +65,13 @@ What a theme does **not** control, by design:
 ```
 
 - `name` — display name.
-- `type` — `dark` or `light` (informational).
+- `type` — `dark` or `light`. Drives the Preferences light/dark pickers and
+  the follow-system selection, so it must be set.
 - `spacing` — CSS length values (see below).
+- `weights` — CSS `font-weight` values (strings). Optional; only `heading` is
+  read today, defaulting to `200`. The thin default reads well on dark
+  backgrounds but washes out on light ones, so light themes set it heavier
+  (e.g. `"300"`).
 - `colors` — hex colors and the `syntax.*` palette (see below).
 
 ## Color format
@@ -159,7 +179,26 @@ Fences with no language — or labeled `text` / `none` — render plain. Use
 ` ```text ` to keep a block uncolored while satisfying linters (markdownlint
 MD040).
 
-## Adding a bundled theme
+## Installing your own theme
+
+No rebuild needed:
+
+1. Write a `.json` file with the structure above. It **must** set `type` to
+   `light` or `dark` — Import rejects a theme that doesn't, because the pickers
+   bucket by it.
+2. **File → Preferences → Import** and pick the file. It's copied into your
+   themes folder (above) and selected.
+3. To iterate, edit the file in place (**Open themes folder** jumps there) and
+   hit **Refresh** to re-read and re-apply it — no re-import, no dialog.
+   **Delete** removes the selected imported theme (bundled ones can't be
+   deleted, so they show no Delete).
+
+Imported themes appear in the pickers next to the bundled ones, filtered into
+the light/dark slots by their `type`.
+
+## Adding a bundled theme (contributors)
+
+To ship a theme with the app instead of importing it:
 
 1. Copy an existing `resources/themes/*.content.json` to
    `resources/themes/<id>.content.json`.
