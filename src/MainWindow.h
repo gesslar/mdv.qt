@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QList>
 #include <QMainWindow>
 #include <QStringList>
 
@@ -38,6 +39,9 @@ private slots:
   void onMoveTabRight();
   void onMoveTabLeft();
   void onCurrentDocumentChanged(DocumentView *doc);
+  // Point the View ▸ Outline toggle at `doc`: reflect its outline state and
+  // follow its later toggles, dropping the previous document's connection.
+  void syncOutlineAction(DocumentView *doc);
   void rebuildRecentMenu();
   void onPreferences();
   void onPreferencesApplied();
@@ -71,4 +75,9 @@ private:
   QAction *m_closeGroupAction = nullptr;
   QAction *m_closeAllAction = nullptr;
   QAction *m_reopenAction = nullptr;
+
+  // View ▸ Outline toggle, kept in sync with the active document's outline.
+  // m_outlineConn follows that document's outlineVisibilityChanged.
+  QAction *m_outlineAction = nullptr;
+  QMetaObject::Connection m_outlineConn;
 };

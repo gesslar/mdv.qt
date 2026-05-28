@@ -585,6 +585,12 @@ void EditorGroup::populateTabContextMenu(QMenu *menu, DocumentView *doc) {
   watchAction->setChecked(doc->isWatching());
   connect(watchAction, &QAction::toggled, doc, &DocumentView::setWatching);
 
+  auto *outlineAction = menu->addAction(tr("Show &Outline"));
+  outlineAction->setCheckable(true);
+  outlineAction->setChecked(doc->outlineVisible());
+  connect(outlineAction, &QAction::toggled, doc,
+          &DocumentView::setOutlineVisible);
+
   menu->addSeparator();
 
   // "Split" entries open a fresh DocumentView for the same file in a

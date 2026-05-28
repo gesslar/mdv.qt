@@ -13,11 +13,14 @@
 namespace Codicon {
 QString family();
 
-constexpr char16_t Close          = 0xEA76;
-constexpr char16_t Pinned         = 0xEBA0;
-constexpr char16_t Settings       = 0xEB52;
-constexpr char16_t ChromeClose    = 0xEAB8;
+constexpr char16_t Close = 0xEA76;
+constexpr char16_t Pinned = 0xEBA0;
+constexpr char16_t Settings = 0xEB52;
+constexpr char16_t ListFlat = 0xEB84;
+constexpr char16_t ChevronLeft = 0xEAB5;
+constexpr char16_t ChevronRight = 0xEAB6;
+constexpr char16_t ChromeClose = 0xEAB8;
 constexpr char16_t ChromeMaximize = 0xEAB9;
 constexpr char16_t ChromeMinimize = 0xEABA;
-constexpr char16_t ChromeRestore  = 0xEABB;
+constexpr char16_t ChromeRestore = 0xEABB;
 }  // namespace Codicon

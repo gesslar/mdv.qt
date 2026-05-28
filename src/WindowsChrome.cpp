@@ -3,25 +3,30 @@
 #include <QWidget>
 
 #ifdef Q_OS_WIN
-  #include <QGuiApplication>
-  #include <QStyleHints>
-  #include <windows.h>
-  #include <dwmapi.h>
-  // Fallbacks for older MinGW SDKs that predate these names. Placed AFTER
-  // the SDK headers so that when a future SDK ships the names — as a #define
-  // or, more likely, as DWMWINDOWATTRIBUTE / DWM_SYSTEMBACKDROP_TYPE enum
-  // entries — the SDK version wins. (A #define ahead of the SDK header would
-  // textually replace the enum entry's identifier and break the enum.)
-  // Values match the documented Microsoft DWM constants.
-  #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
-    #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
-  #endif
-  #ifndef DWMWA_SYSTEMBACKDROP_TYPE
-    #define DWMWA_SYSTEMBACKDROP_TYPE 38
-  #endif
-  #ifndef DWMSBT_MAINWINDOW
-    #define DWMSBT_MAINWINDOW 2
-  #endif
+#include <QGuiApplication>
+#include <QStyleHints>
+// clang-format off
+// windows.h must precede dwmapi.h (and other Windows SDK headers) — they use
+// types it defines. Fenced so the include sorter can't alphabetize them back
+// into a broken order.
+#include <windows.h>
+#include <dwmapi.h>
+// clang-format on
+// Fallbacks for older MinGW SDKs that predate these names. Placed AFTER
+// the SDK headers so that when a future SDK ships the names — as a #define
+// or, more likely, as DWMWINDOWATTRIBUTE / DWM_SYSTEMBACKDROP_TYPE enum
+// entries — the SDK version wins. (A #define ahead of the SDK header would
+// textually replace the enum entry's identifier and break the enum.)
+// Values match the documented Microsoft DWM constants.
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif
+#ifndef DWMWA_SYSTEMBACKDROP_TYPE
+#define DWMWA_SYSTEMBACKDROP_TYPE 38
+#endif
+#ifndef DWMSBT_MAINWINDOW
+#define DWMSBT_MAINWINDOW 2
+#endif
 
 namespace {
 void writeDwmAttrs(QWidget *w) {
@@ -52,8 +57,9 @@ void applyWindowsChrome(QWidget *w) {
   // lambda doesn't re-enter applyWindowsChrome so a single call wires the
   // tracker exactly once.
   QObject::connect(QGuiApplication::styleHints(),
-                   &QStyleHints::colorSchemeChanged, w,
-                   [w](Qt::ColorScheme) { writeDwmAttrs(w); });
+                   &QStyleHints::colorSchemeChanged, w, [w](Qt::ColorScheme) {
+                     writeDwmAttrs(w);
+                   });
 #else
   (void)w;
 #endif
