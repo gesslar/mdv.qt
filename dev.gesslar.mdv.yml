@@ -3,8 +3,10 @@
 #
 # Self-contained: the `mdv` module builds straight from THIS repo's working tree
 # (type: dir, path: .) — no presumed pushed tag or sibling directory. The KDE
-# runtime already ships Qt 6 and KSyntaxHighlighting (KF6), so the only thing we
-# build alongside mdv is md4c, the one genuinely-external dependency.
+# runtime already ships Qt 6 and KSyntaxHighlighting (KF6), so the external
+# sources we supply alongside mdv are md4c (its own module below) and QWindowKit
+# (pre-fetched on the mdv module — see the note there), since the in-sandbox
+# build has no network to fetch them itself.
 #
 # For a Flathub submission, swap the mdv source to a pinned remote
 # (type: git with url + tag + commit) — Flathub builds from a published ref,
@@ -91,6 +93,25 @@ modules:
     buildsystem: cmake-ninja
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
+      # QWindowKit (frameless-window scaffolding) is FetchContent'd by our
+      # CMakeLists at configure time. flatpak-builder runs the build in a
+      # network-isolated sandbox, so that clone fails with "Could not resolve
+      # host: github.com". Instead we pre-fetch QWindowKit as a source below
+      # (downloaded — with its qmsetup submodule — during flatpak-builder's
+      # network-enabled download phase) and point FetchContent at that checkout
+      # so it skips the clone. /run/build/<module-name> is flatpak-builder's
+      # fixed in-sandbox build dir, so this absolute path is stable; its final
+      # component must match the source's `dest` below.
+      - -DFETCHCONTENT_SOURCE_DIR_QWINDOWKIT=/run/build/mdv/qwindowkit
+      # QWindowKit configure-time-builds its qmsetup dependency into a private
+      # tree, then find_package()s it back from <prefix>/${CMAKE_INSTALL_LIBDIR}.
+      # flatpak-builder forces CMAKE_INSTALL_LIBDIR=lib on this module, but that
+      # qmsetup sub-build is a separate cmake run flatpak-builder doesn't touch,
+      # so its GNUInstallDirs picks the non-debian 64-bit default (lib64) and
+      # installs there — the find_package then misses under lib. Pin the module
+      # to lib64 so both halves agree. Harmless: mdv installs only to bin/ and
+      # share/ (never libdir), so nothing else moves.
+      - -DCMAKE_INSTALL_LIBDIR=lib64
     sources:
       - type: dir
         path: .
@@ -103,3 +124,14 @@ modules:
           - build-release
           - dist
           - .flatpak-builder
+      # QWindowKit, pre-fetched for the offline in-sandbox build (see the
+      # FETCHCONTENT_SOURCE_DIR_QWINDOWKIT config-opt above). flatpak-builder
+      # clones this — and its qmsetup submodule, whose relative URL resolves
+      # against this repo — while it still has network. Pinned by tag + commit
+      # like md4c. `dest` lands it at /run/build/mdv/qwindowkit, matching the
+      # config-opt path.
+      - type: git
+        url: https://github.com/stdware/qwindowkit.git
+        tag: 1.5.0
+        commit: 35e88f3655720ed0537c7dd1dde243bf4a70c94c
+        dest: qwindowkit
