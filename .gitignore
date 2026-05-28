@@ -22,7 +22,6 @@ compile_commands.json
 CMakeLists.txt.user*
 
 # IDE
-.vscode/
 .idea/
 .vs/
 
