@@ -7,8 +7,8 @@ class DocumentView;
 class EditorArea;
 class PreferencesDialog;
 class QAction;
-class QLabel;
 class QMenu;
+class QToolButton;
 
 class MainWindow : public QMainWindow {
   Q_OBJECT
@@ -47,13 +47,21 @@ private slots:
   void updateFileMenuState();
 
 private:
+  // Rebuild the status-bar stylesheet for the current color scheme. The app
+  // themes via QStyleHints, not the Qt palette, so the button's text colour
+  // has to be re-applied on every scheme change (mirrors TitleBar).
+  void refreshStatusBarStyle();
+
   void loadRecentFiles();
   void saveRecentFiles();
   void addToRecentFiles(const QString &canonical);
   void removeFromRecentFiles(const QString &path);
 
   EditorArea *m_area = nullptr;
-  QLabel *m_statusLabel = nullptr;
+  QToolButton *m_statusButton = nullptr;
+  // Native-separator path of the current document, backing the status button's
+  // copy / reveal actions. Empty when no file is open.
+  QString m_currentPath;
   QMenu *m_recentMenu = nullptr;
   QStringList m_recentFiles;
   PreferencesDialog *m_preferencesDialog = nullptr;

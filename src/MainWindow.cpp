@@ -1,15 +1,20 @@
 #include "MainWindow.h"
 
 #include <QAction>
+#include <QClipboard>
+#include <QDesktopServices>
+#include <QDir>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QLabel>
+#include <QGuiApplication>
 #include <QMenu>
 #include <QMimeData>
+#include <QProcess>
 #include <QSettings>
 #include <QStatusBar>
+#include <QStyleHints>
 #include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -27,6 +32,23 @@
 namespace {
 constexpr int kRecentFilesLimit = 10;
 constexpr const char *kRecentFilesKey = "recentFiles";
+
+// Open the platform file manager with the file highlighted. Windows/macOS can
+// select the file itself; elsewhere we fall back to opening its folder.
+void revealInFileManager(const QString &path) {
+  const QFileInfo info(path);
+#if defined(Q_OS_WIN)
+  QProcess::startDetached(
+      QStringLiteral("explorer.exe"),
+      {QStringLiteral("/select,") +
+       QDir::toNativeSeparators(info.absoluteFilePath())});
+#elif defined(Q_OS_MACOS)
+  QProcess::startDetached(QStringLiteral("open"),
+                          {QStringLiteral("-R"), info.absoluteFilePath()});
+#else
+  QDesktopServices::openUrl(QUrl::fromLocalFile(info.absolutePath()));
+#endif
+}
 }  // namespace
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
@@ -63,6 +85,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   connect(openAction, &QAction::triggered, this, &MainWindow::onOpen);
 
   m_recentMenu = fileMenu->addMenu(tr("Open &Recent"));
+  // QMenu suppresses per-action tooltips by default; opt in so each entry's
+  // full path tooltip actually shows.
+  m_recentMenu->setToolTipsVisible(true);
   // Rebuild on demand so the menu reflects the current list even if it
   // was changed via openFile / Clear since the menu was last shown.
   connect(m_recentMenu, &QMenu::aboutToShow, this,
@@ -71,7 +96,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   fileMenu->addSeparator();
 
   m_closeTabAction = fileMenu->addAction(tr("&Close Tab"));
-  m_closeTabAction->setShortcut(QKeySequence::Close);
+  // Keep the platform-standard Close keys (Ctrl+F4 on Windows) and add Ctrl+W,
+  // which Windows doesn't bind by default but everyone reaches for.
+  QList<QKeySequence> closeKeys = QKeySequence::keyBindings(QKeySequence::Close);
+  if(const QKeySequence ctrlW(Qt::CTRL | Qt::Key_W); !closeKeys.contains(ctrlW))
+    closeKeys.append(ctrlW);
+  m_closeTabAction->setShortcuts(closeKeys);
   connect(m_closeTabAction, &QAction::triggered, this,
           &MainWindow::onCloseCurrentTab);
 
@@ -158,8 +188,42 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   // message that would overwrite a temporary and never restore it; a normal
   // widget is merely hidden under any temporary message and reappears once
   // the menu closes.
-  m_statusLabel = new QLabel(tr("No file open."), this);
-  statusBar()->addWidget(m_statusLabel);
+  m_statusButton = new QToolButton(this);
+  m_statusButton->setText(tr("No file open."));
+  m_statusButton->setEnabled(false);
+  m_statusButton->setAutoRaise(true);
+  m_statusButton->setFocusPolicy(Qt::NoFocus);
+  m_statusButton->setCursor(Qt::PointingHandCursor);
+  m_statusButton->setContextMenuPolicy(Qt::CustomContextMenu);
+  // The Windows style draws a sunken frame around status-bar items; clear it
+  // so the button sits flush. The button itself is flat with a theme-agnostic
+  // grey hover wash (matching the tab buttons) and a little left pad.
+  refreshStatusBarStyle();
+  connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
+          [this](Qt::ColorScheme) { refreshStatusBarStyle(); });
+  statusBar()->addWidget(m_statusButton);
+
+  // Left-click copies the full path; the temporary status message reappears as
+  // the button once it times out.
+  connect(m_statusButton, &QToolButton::clicked, this, [this]() {
+    if(m_currentPath.isEmpty()) return;
+    QGuiApplication::clipboard()->setText(m_currentPath);
+    statusBar()->showMessage(tr("Path copied to clipboard"), 1500);
+  });
+  connect(m_statusButton, &QWidget::customContextMenuRequested, this,
+          [this](const QPoint &pos) {
+            if(m_currentPath.isEmpty()) return;
+            QMenu menu;
+            QAction *copy = menu.addAction(tr("Copy Path"));
+            QAction *reveal = menu.addAction(tr("Open Containing Folder"));
+            QAction *chosen = menu.exec(m_statusButton->mapToGlobal(pos));
+            if(chosen == copy) {
+              QGuiApplication::clipboard()->setText(m_currentPath);
+              statusBar()->showMessage(tr("Path copied to clipboard"), 1500);
+            } else if(chosen == reveal) {
+              revealInFileManager(m_currentPath);
+            }
+          });
 
   // Custom frameless chrome. QWindowKit handles the native bits: snap
   // layouts, snap zones, resize edges, Win11 immersive dark mode + Mica
@@ -341,14 +405,40 @@ void MainWindow::onMoveTabLeft() {
   if(auto *group = m_area->activeGroup()) group->moveCurrentTabLeft();
 }
 
+void MainWindow::refreshStatusBarStyle() {
+  const bool dark = QGuiApplication::styleHints()->colorScheme()
+                    == Qt::ColorScheme::Dark;
+  const QString fg = dark ? QStringLiteral("#f0f0f0") : QStringLiteral("#000000");
+  // Zero vertical padding so the button hugs the text height and the status
+  // bar centers it; horizontal padding gives the hover pill some breathing
+  // room while keeping the small left inset off the window edge. Hover/press
+  // use a grey wash that reads on either scheme.
+  statusBar()->setStyleSheet(
+      QStringLiteral(
+          "QStatusBar { color: %1; }"
+          "QStatusBar::item { border: none; }"
+          "QStatusBar QToolButton { border: none; background: transparent;"
+          " color: %1; padding: 0px 8px 0px 4px; border-radius: 4px; }"
+          "QStatusBar QToolButton:disabled { color: #888888; }"
+          "QStatusBar QToolButton:enabled:hover { background: rgba(127,127,127,0.18); }"
+          "QStatusBar QToolButton:enabled:pressed { background: rgba(127,127,127,0.30); }")
+          .arg(fg));
+}
+
 void MainWindow::onCurrentDocumentChanged(DocumentView *doc) {
   if(!doc) {
     setWindowTitle(tr("mdv"));
-    m_statusLabel->setText(tr("No file open."));
+    m_currentPath.clear();
+    m_statusButton->setText(tr("No file open."));
+    m_statusButton->setToolTip(QString());
+    m_statusButton->setEnabled(false);
     return;
   }
   setWindowTitle(tr("%1 — mdv").arg(doc->displayName()));
-  m_statusLabel->setText(doc->filePath());
+  m_currentPath = QDir::toNativeSeparators(doc->filePath());
+  m_statusButton->setText(m_currentPath);
+  m_statusButton->setToolTip(tr("Click to copy path"));
+  m_statusButton->setEnabled(true);
 }
 
 void MainWindow::loadRecentFiles() {
@@ -400,7 +490,7 @@ void MainWindow::rebuildRecentMenu() {
   for(const QString &path : std::as_const(m_recentFiles)) {
     const QFileInfo info(path);
     auto *action = m_recentMenu->addAction(info.fileName());
-    action->setToolTip(path);
+    action->setToolTip(QDir::toNativeSeparators(path));
     connect(action, &QAction::triggered, this, [this, path]() {
       openFile(path);
     });
