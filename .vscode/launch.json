@@ -24,7 +24,8 @@
         "miDebuggerPath": "/usr/bin/gdb"
       },
       "osx": {
-        "MIMode": "lldb"
+        "MIMode": "lldb",
+        "miDebuggerPath": "/usr/bin/lldb"
       },
       "windows": {
         "program": "${workspaceFolder}/build/mdv.exe",
