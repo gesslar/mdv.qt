@@ -50,18 +50,37 @@ endif
 # `make` on its own gives you a dev build.
 all: build
 
+# Reconfigure trigger: we re-run the cmake configure step in either of two
+# cases — (a) the build dir hasn't been configured yet (no build.ninja), or
+# (b) the user passed a configure-affecting flag on the command line, in
+# which case we MUST honor it rather than silently using the cached value.
+# `$(origin VAR)` returns "command line" only for `make VAR=… target`,
+# not for ambient env vars or defaults, which is exactly the signal we want:
+# an explicit override on this invocation. Add PREFIX_PATH-equivalents to this
+# list when introducing new user-facing knobs.
+_CMD_LINE_OVERRIDES := $(filter command line,$(origin PREFIX_PATH))
+_DEV_NEEDS_CONFIGURE := $(or $(_CMD_LINE_OVERRIDES),$(if $(wildcard $(DEV_DIR)/build.ninja),,1))
+_REL_NEEDS_CONFIGURE := $(or $(_CMD_LINE_OVERRIDES),$(if $(wildcard $(RELEASE_DIR)/build.ninja),,1))
+
+# OS-specific include (bottom of this file) may append extra -D flags to the
+# release configure via this hook — e.g. Makefile.dist.windows sets
+# MDV_PACKAGE_OUTPUT_DIR here so the single release configure bakes it in,
+# avoiding a second reconfigure (and the ninja relink cascade it would cause)
+# when `make windows` later runs the packaging target.
+RELEASE_CMAKE_EXTRA ?=
+
 # Dev build (build/): no optimization, debug symbols, assertions on.
 # CMAKE_EXPORT_COMPILE_COMMANDS writes build/compile_commands.json so
 # clangd / Qt Creator can resolve Qt + KSyntaxHighlighting includes.
 #
-# We only run `cmake -S . -B …` (the configure step) when the build dir hasn't
-# been configured yet. Once build.ninja exists, `cmake --build` calls ninja
-# directly, and ninja's RERUN_CMAKE rule self-reconfigures whenever any tracked
+# We skip the `cmake -S . -B …` (configure) step when the build dir is already
+# configured AND no configure-affecting flag was overridden on the command
+# line. Once build.ninja exists, `cmake --build` calls ninja directly, and
+# ninja's RERUN_CMAKE rule self-reconfigures whenever any tracked
 # CMakeLists.txt / .cmake file changes — so subsequent `make`s are no-ops when
-# nothing's changed. Re-invoking configure unconditionally would re-touch enough
-# metadata in the FetchContent'd KSH tree to make ninja re-run the
+# nothing's changed. Re-invoking configure unconditionally would re-touch
+# enough metadata in the FetchContent'd KSH tree to make ninja re-run the
 # katehighlightingindexer, which cascades into a relink of everything.
-# Switching build flags (PREFIX_PATH, etc.) means `make distclean` first.
 #
 # The gate uses Make's built-in $(wildcard …) — evaluated at Makefile parse
 # time, no shell involved — so it works identically whether make's shell is sh
@@ -70,16 +89,17 @@ all: build
 # since cmd has no `test` builtin and treated its absence as "false" — running
 # the configure every time, which was the whole problem we set out to fix.
 build:
-ifeq (,$(wildcard $(DEV_DIR)/build.ninja))
+ifneq (,$(_DEV_NEEDS_CONFIGURE))
 	cmake -S . -B $(DEV_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Debug $(PREFIX_FLAG) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 endif
 	cmake --build $(DEV_DIR)
 
 # Release build (build-release/): optimized, assertions off. What you ship.
 # Same one-shot-configure pattern as `build` above — see the comment there.
+# $(RELEASE_CMAKE_EXTRA) is the OS-include hook for packaging flags.
 release:
-ifeq (,$(wildcard $(RELEASE_DIR)/build.ninja))
-	cmake -S . -B $(RELEASE_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release $(PREFIX_FLAG)
+ifneq (,$(_REL_NEEDS_CONFIGURE))
+	cmake -S . -B $(RELEASE_DIR) -G Ninja -DCMAKE_BUILD_TYPE=Release $(PREFIX_FLAG) $(RELEASE_CMAKE_EXTRA)
 endif
 	cmake --build $(RELEASE_DIR)
 
