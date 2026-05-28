@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(mdv
-    VERSION 2.1.0
+    VERSION 2.2.0
     DESCRIPTION "An offline Markdown viewer for everybody! For free! Huzzah!"
     LANGUAGES CXX
 )
