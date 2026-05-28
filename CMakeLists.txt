@@ -40,7 +40,23 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type" FORCE)
 endif()
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+# The *Private components are pulled in for QWindowKit (below): its frameless
+# contexts compile against Qt's private/QPA headers. QWindowKit finds those
+# private targets inside a function scope (via qmsetup), so the imported
+# Qt6::*Private targets aren't visible when Qt finalizes the mdv target — which
+# prints "<X>Private ... mentioned as a dependency ... but not declared"
+# warnings (and potentially incomplete linking) as it walks QWKCore's /
+# QWindowKit::Widgets's link interface. Declaring them here at top level makes
+# the targets exist project-wide. (On Linux these need qt6-qtbase-private-devel;
+# see DEVELOPMENT.md.)
+#
+# Depending on private Qt API is unavoidable with QWindowKit and is its
+# maintainers' burden to track across Qt versions; we knowingly accept it, so
+# suppress Qt's per-module "you are using a private module" advisory rather than
+# have it fire three times on every configure.
+set(QT_NO_PRIVATE_MODULE_WARNING ON)
+find_package(Qt6 6.5 REQUIRED
+    COMPONENTS Widgets CorePrivate GuiPrivate WidgetsPrivate)
 
 # --- Non-Qt dependencies ------------------------------------------------------
 #
