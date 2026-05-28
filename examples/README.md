@@ -6,7 +6,7 @@ theme renders the full range of elements and code.
 
 - **[elements.md](elements.md)** — every Markdown element mdv themes:
   headings, text emphasis, lists, tables, blockquotes, inline code, links,
-  rules.
+  local images, rules.
 - **[syntax-highlighting.md](syntax-highlighting.md)** — fenced code blocks
   across many languages, plus the "no highlighting" cases (`text`, `none`,
   and an unlabeled fence).

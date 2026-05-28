@@ -9,6 +9,9 @@ A fast, minimal desktop Markdown viewer built with Qt 6 and C++.
 - **Automatic syntax highlighting** for fenced code blocks via
   [KSyntaxHighlighting](https://invent.kde.org/frameworks/syntax-highlighting),
   colored from the active theme
+- **Inline images** from local files — `![alt](path.png)` resolves relative to
+  the document (absolute paths work too); remote URLs aren't fetched, in keeping
+  with offline-only viewing
 - **Content themes** — swappable color/spacing themes for the rendered
   document; six bundled as three dark/light pairs, plus follow-the-system
   light/dark switching, and you can author your own
