@@ -6,6 +6,7 @@
 class QCheckBox;
 class QComboBox;
 class QFontComboBox;
+class QHBoxLayout;
 class QSpinBox;
 class QToolButton;
 
@@ -40,15 +41,14 @@ private slots:
   void onAccepted();
   void onImportTheme();
   void onDeleteTheme();
-  void onRefreshTheme();
   void onOpenThemesFolder();
 
 private:
   void saveToSettings();
 
   // Persist just the theme selection keys (followSystem + the three theme
-  // ids). Shared by saveToSettings() and onRefreshTheme() — the latter must
-  // NOT commit the font/outline widgets, or Refresh would bypass Cancel.
+  // ids). Used by saveToSettings() on OK/Apply — kept separate so the
+  // theme-only commits don't drag the font/outline widgets along.
   void saveThemeSelection();
 
   // Clear and refill the manual theme combo from ContentTheme::
@@ -62,9 +62,28 @@ private:
   void populateTypedCombo(QComboBox *combo, const QString &type,
                           const QString &selectId);
 
-  // Show the Refresh/Delete buttons only when the manual combo's selection is
-  // a user import (bundled themes are read-only).
+  // Show each combo's Refresh/Delete buttons only when that combo's selection
+  // is a user import (bundled themes are read-only). Covers the manual combo
+  // and both preferred light/dark combos.
   void updateThemeButtons();
+
+  // Confirm and delete the user theme currently selected in <combo>, then
+  // repopulate every picker. No-op for bundled or empty selections. Shared by
+  // the manual, light, and dark delete buttons.
+  void deleteThemeFromCombo(QComboBox *combo);
+
+  // Reload <combo>'s currently-selected theme from disk and re-apply it.
+  // Persists ONLY <settingsKey> (this combo's value) plus followSystem — never
+  // the sibling combos or the font/outline widgets — so a Reload can't commit
+  // another picker's in-flight edit behind Cancel's back. Shared by the
+  // manual, light, and dark Reload buttons.
+  void refreshThemeFromCombo(QComboBox *combo, const QString &settingsKey);
+
+  // Build a "picker row": <combo> followed by per-theme Reload/Delete
+  // codicon buttons, returned via <refresh>/<del> for wiring and visibility.
+  // Reused for the manual combo and both preferred light/dark combos.
+  QHBoxLayout *makeThemeRow(QComboBox *combo, QToolButton *&refresh,
+                            QToolButton *&del);
 
   // Toggle between the manual single-picker and the light/dark pair pickers
   // based on the "follow system" checkbox.
@@ -80,6 +99,10 @@ private:
   QToolButton *m_importTheme = nullptr;
   QToolButton *m_deleteTheme = nullptr;
   QToolButton *m_openThemesFolder = nullptr;
+  QToolButton *m_lightRefresh = nullptr;
+  QToolButton *m_lightDelete = nullptr;
+  QToolButton *m_darkRefresh = nullptr;
+  QToolButton *m_darkDelete = nullptr;
   QFontComboBox *m_proseFont = nullptr;
   QSpinBox *m_proseSize = nullptr;
   QFontComboBox *m_monoFont = nullptr;
