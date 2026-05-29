@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Qt 6.5 or newer** (Widgets module)
+- **Qt 6.11 or newer** (Widgets module)
 - **md4c** — CommonMark + GFM markdown parser
 - **KSyntaxHighlighting** (KDE Frameworks 6) — code-block syntax highlighting
 - **CMake 3.21 or newer**
@@ -43,7 +43,7 @@ sudo pacman -S qt6-base md4c syntax-highlighting cmake ninja gcc qtcreator
 
 ### macOS
 
-The official **[Qt online installer](https://www.qt.io/download-qt-installer)** is the easiest path. Pick Qt 6.5+ with the Widgets module. Then:
+The official **[Qt online installer](https://www.qt.io/download-qt-installer)** is the easiest path. Pick Qt 6.11+ with the Widgets module. Then:
 
 ```bash
 brew install md4c cmake ninja
@@ -61,7 +61,7 @@ KSyntaxHighlighting (KDE Frameworks 6) isn't in Homebrew core; on macOS install 
 
 ### Windows
 
-Install the official **[Qt online installer](https://www.qt.io/download-qt-installer)** and select Qt 6.5+ with **MinGW 64-bit** (the version this project was developed against; MSVC 2022 64-bit also works). Include **Qt Linguist / qttools** in the install — KSyntaxHighlighting's translation step needs `lrelease` on `PATH`. The Qt installer also bundles CMake, Ninja, and Qt Creator.
+Install the official **[Qt online installer](https://www.qt.io/download-qt-installer)** and select Qt 6.11+ with **MinGW 64-bit** (the version this project was developed against; MSVC 2022 64-bit also works). Include **Qt Linguist / qttools** in the install — KSyntaxHighlighting's translation step needs `lrelease` on `PATH`. The Qt installer also bundles CMake, Ninja, and Qt Creator.
 
 Two extra prereqs that the Qt installer doesn't provide:
 

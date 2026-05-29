@@ -36,6 +36,9 @@ signals:
 protected:
   bool eventFilter(QObject *obj, QEvent *e) override;
   void showEvent(QShowEvent *e) override;
+  // Re-pull the stylesheet when the system palette shifts (accent or
+  // light/dark), so the bar keeps belonging to the desktop around it.
+  void changeEvent(QEvent *e) override;
 
 private:
   void refreshMaxIcon();

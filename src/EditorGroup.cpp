@@ -29,8 +29,9 @@ namespace {
 
 // Translucent overlay painted on top of a group to preview where a tab
 // drop will land. Mouse-transparent so it never intercepts drag events.
-// Color is sourced from QPalette::Highlight so it tracks the user's
-// system accent / selection color.
+// Color is sourced from QPalette::Accent so it tracks the user's system
+// accent, with a defensive Highlight fallback if a platform leaves Accent
+// unset.
 class DropOverlay : public QWidget {
 public:
   explicit DropOverlay(QWidget *parent) : QWidget(parent) {
@@ -40,7 +41,8 @@ public:
 
 protected:
   void paintEvent(QPaintEvent *) override {
-    const QColor accent = palette().color(QPalette::Highlight);
+    QColor accent = palette().color(QPalette::Accent);
+    if(!accent.isValid()) accent = palette().color(QPalette::Highlight);
     QColor fill = accent;
     fill.setAlpha(80);
 

@@ -6,10 +6,12 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
+#include <QPalette>
 #include <QStyle>
 #include <QStyleHints>
 #include <QToolButton>
 
+#include "ChromeStyle.h"
 #include "CodiconFont.h"
 
 namespace {
@@ -101,20 +103,17 @@ TitleBar::TitleBar(QWidget *parent) : QWidget(parent) {
 }
 
 void TitleBar::refreshTheme() {
-  // Title bar tracks the active Qt color scheme so it doesn't fight the rest
-  // of the chrome on a system-theme switch. Close button hover stays the
-  // canonical Win11 red regardless of scheme; the menu-indicator chevron is
-  // suppressed in both — the buttons read as labels, not dropdowns.
-  const bool dark =
-      QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
-  const QString bg =
-      dark ? QStringLiteral("#1f1f1f") : QStringLiteral("#f3f3f3");
-  const QString fg =
-      dark ? QStringLiteral("#f0f0f0") : QStringLiteral("#000000");
-  const QString hover = dark ? QStringLiteral("rgba(255,255,255,0.08)")
-                             : QStringLiteral("rgba(0,0,0,0.06)");
-  const QString press = dark ? QStringLiteral("rgba(255,255,255,0.04)")
-                             : QStringLiteral("rgba(0,0,0,0.04)");
+  // Title bar colors come straight from the system palette so it belongs to
+  // the desktop and shifts with it — Window/WindowText for the surface, with
+  // hover/press as translucent WindowText washes that read on any scheme.
+  // Close button hover stays the canonical Win11 red regardless of scheme; the
+  // menu-indicator chevron is suppressed so the buttons read as labels.
+  const QPalette pal = palette();
+  const QString bg = pal.color(QPalette::Window).name();
+  const QString fg = pal.color(QPalette::WindowText).name();
+  const QColor txt = pal.color(QPalette::WindowText);
+  const QString hover = cssRgba(txt, 0.10);
+  const QString press = cssRgba(txt, 0.16);
 
   setStyleSheet(QStringLiteral(R"(
 TitleBar { background: %1; }
@@ -131,6 +130,13 @@ TitleBar QToolButton#sysClose:pressed { background: #b4271a; color: white; }
 TitleBar QToolButton::menu-indicator { image: none; }
 )")
                     .arg(bg, fg, hover, press));
+}
+
+void TitleBar::changeEvent(QEvent *e) {
+  QWidget::changeEvent(e);
+  // ApplicationPaletteChange covers both accent and light/dark shifts; the
+  // explicit stylesheet would otherwise stay frozen at its old colors.
+  if(e->type() == QEvent::ApplicationPaletteChange) refreshTheme();
 }
 
 void TitleBar::setFileMenu(QMenu *menu) { m_fileBtn->setMenu(menu); }

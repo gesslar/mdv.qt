@@ -342,6 +342,7 @@ qt_add_executable(mdv
     src/WindowsChrome.h
     src/CodiconFont.cpp
     src/CodiconFont.h
+    src/ChromeStyle.h
     src/DocumentView.cpp
     src/DocumentView.h
     src/FindBar.cpp

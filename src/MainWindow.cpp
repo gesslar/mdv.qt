@@ -6,11 +6,13 @@
 #include <QDir>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QMenu>
 #include <QMimeData>
+#include <QPalette>
 #include <QProcess>
 #include <QSettings>
 #include <QSignalBlocker>
@@ -20,6 +22,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
+#include "ChromeStyle.h"
 #include "ContentTheme.h"
 #include "DocumentView.h"
 #include "EditorArea.h"
@@ -427,26 +430,35 @@ void MainWindow::onMoveTabLeft() {
 }
 
 void MainWindow::refreshStatusBarStyle() {
-  const bool dark =
-      QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
-  const QString fg =
-      dark ? QStringLiteral("#f0f0f0") : QStringLiteral("#000000");
-  // Zero vertical padding so the button hugs the text height and the status
-  // bar centers it; horizontal padding gives the hover pill some breathing
-  // room while keeping the small left inset off the window edge. Hover/press
-  // use a grey wash that reads on either scheme.
+  // Colors track the system palette: WindowText for the label/button, the
+  // palette's disabled WindowText for the dimmed state, and translucent
+  // WindowText washes for hover/press (which read on any scheme). Zero
+  // vertical padding lets the status bar center the button to text height;
+  // horizontal padding gives the hover pill room while keeping a small inset.
+  const QPalette pal = palette();
+  const QColor txt = pal.color(QPalette::WindowText);
+  const QString fg = txt.name();
+  const QString dis =
+      pal.color(QPalette::Disabled, QPalette::WindowText).name();
+  const QString hover = cssRgba(txt, 0.18);
+  const QString press = cssRgba(txt, 0.30);
   statusBar()->setStyleSheet(
       QStringLiteral(
           "QStatusBar { color: %1; }"
           "QStatusBar::item { border: none; }"
           "QStatusBar QToolButton { border: none; background: transparent;"
           " color: %1; padding: 0px 8px 0px 4px; border-radius: 4px; }"
-          "QStatusBar QToolButton:disabled { color: #888888; }"
-          "QStatusBar QToolButton:enabled:hover { background: "
-          "rgba(127,127,127,0.18); }"
-          "QStatusBar QToolButton:enabled:pressed { background: "
-          "rgba(127,127,127,0.30); }")
-          .arg(fg));
+          "QStatusBar QToolButton:disabled { color: %2; }"
+          "QStatusBar QToolButton:enabled:hover { background: %3; }"
+          "QStatusBar QToolButton:enabled:pressed { background: %4; }")
+          .arg(fg, dis, hover, press));
+}
+
+void MainWindow::changeEvent(QEvent *e) {
+  QMainWindow::changeEvent(e);
+  // ApplicationPaletteChange covers both accent and light/dark shifts; the
+  // explicit stylesheet would otherwise stay frozen at its old colors.
+  if(e->type() == QEvent::ApplicationPaletteChange) refreshStatusBarStyle();
 }
 
 void MainWindow::onCurrentDocumentChanged(DocumentView *doc) {

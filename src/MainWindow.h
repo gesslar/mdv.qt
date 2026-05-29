@@ -25,6 +25,9 @@ public:
 protected:
   void dragEnterEvent(QDragEnterEvent *e) override;
   void dropEvent(QDropEvent *e) override;
+  // Re-pull the status bar stylesheet when the system palette shifts (accent
+  // or light/dark), so it keeps belonging to the desktop around it.
+  void changeEvent(QEvent *e) override;
 
 private slots:
   void onOpen();
