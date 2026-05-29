@@ -61,7 +61,7 @@ set(QT_NO_PRIVATE_MODULE_WARNING ON)
 # integration). We never touch Qt's Vulkan path, so skip the find_package
 # probe — the warning goes away and Qt links exactly the same.
 set(CMAKE_DISABLE_FIND_PACKAGE_WrapVulkanHeaders ON)
-find_package(Qt6 6.5 REQUIRED
+find_package(Qt6 6.11 REQUIRED
     COMPONENTS Widgets CorePrivate GuiPrivate WidgetsPrivate)
 
 # --- Non-Qt dependencies ------------------------------------------------------
@@ -137,7 +137,7 @@ if(WIN32)
     # find_dependency(); on the FetchContent path the consumer (this project)
     # has to declare it. Add it once here so the warning goes away and the
     # link line is honest.
-    find_package(Qt6 6.5 REQUIRED COMPONENTS Network)
+    find_package(Qt6 6.11 REQUIRED COMPONENTS Network)
 
     include(FetchContent)
     set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
