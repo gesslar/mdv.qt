@@ -16,6 +16,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSettings>
+#include <QSizePolicy>
 #include <QSpinBox>
 #include <QToolButton>
 #include <QUrl>
@@ -48,6 +49,29 @@ QToolButton *makeCodiconButton(char16_t glyph, const QString &fallbackText,
 }
 
 }  // namespace
+
+QHBoxLayout *PreferencesDialog::makeThemeRow(QComboBox *combo,
+                                             QToolButton *&refresh,
+                                             QToolButton *&del) {
+  QWidget *parent = combo->parentWidget();
+  refresh = makeCodiconButton(Codicon::Refresh, tr("Reload"),
+                              tr("Reload this theme from disk and re-apply it."),
+                              parent);
+  del = makeCodiconButton(Codicon::Trash, tr("Delete"),
+                          tr("Delete this imported theme."), parent);
+  // Keep the buttons' footprint even while hidden so every combo stays the
+  // same width and the rows line up, bundled or not.
+  for(QToolButton *b : {refresh, del}) {
+    QSizePolicy sp = b->sizePolicy();
+    sp.setRetainSizeWhenHidden(true);
+    b->setSizePolicy(sp);
+  }
+  auto *row = new QHBoxLayout;
+  row->addWidget(combo, /*stretch=*/1);
+  row->addWidget(refresh);
+  row->addWidget(del);
+  return row;
+}
 
 PreferencesDialog::PreferencesDialog(QWidget *parent) : QDialog(parent) {
   setWindowTitle(tr("Preferences"));
@@ -90,17 +114,7 @@ PreferencesDialog::PreferencesDialog(QWidget *parent) : QDialog(parent) {
   auto *singleForm = new QFormLayout(m_singleWidget);
   singleForm->setContentsMargins(0, 0, 0, 0);
   m_themeCombo = new QComboBox(m_singleWidget);
-  m_refreshTheme =
-      makeCodiconButton(Codicon::Refresh, tr("Reload"),
-                        tr("Reload this theme from disk and re-apply it."),
-                        m_singleWidget);
-  m_deleteTheme =
-      makeCodiconButton(Codicon::Trash, tr("Delete"),
-                        tr("Delete this imported theme."), m_singleWidget);
-  auto *singleRow = new QHBoxLayout;
-  singleRow->addWidget(m_themeCombo, /*stretch=*/1);
-  singleRow->addWidget(m_refreshTheme);
-  singleRow->addWidget(m_deleteTheme);
+  auto *singleRow = makeThemeRow(m_themeCombo, m_refreshTheme, m_deleteTheme);
   singleForm->addRow(tr("Content theme:"), singleRow);
   themeOuter->addWidget(m_singleWidget);
 
@@ -111,8 +125,10 @@ PreferencesDialog::PreferencesDialog(QWidget *parent) : QDialog(parent) {
   pairForm->setContentsMargins(0, 0, 0, 0);
   m_lightCombo = new QComboBox(m_pairWidget);
   m_darkCombo = new QComboBox(m_pairWidget);
-  pairForm->addRow(tr("Preferred light:"), m_lightCombo);
-  pairForm->addRow(tr("Preferred dark:"), m_darkCombo);
+  auto *lightRow = makeThemeRow(m_lightCombo, m_lightRefresh, m_lightDelete);
+  auto *darkRow = makeThemeRow(m_darkCombo, m_darkRefresh, m_darkDelete);
+  pairForm->addRow(tr("Preferred light:"), lightRow);
+  pairForm->addRow(tr("Preferred dark:"), darkRow);
   themeOuter->addWidget(m_pairWidget);
 
   root->addWidget(themeGroup);
@@ -121,14 +137,31 @@ PreferencesDialog::PreferencesDialog(QWidget *parent) : QDialog(parent) {
           &PreferencesDialog::updateThemeMode);
   connect(m_themeCombo, &QComboBox::currentIndexChanged, this,
           &PreferencesDialog::updateThemeButtons);
-  connect(m_refreshTheme, &QToolButton::clicked, this,
-          &PreferencesDialog::onRefreshTheme);
+  connect(m_lightCombo, &QComboBox::currentIndexChanged, this,
+          &PreferencesDialog::updateThemeButtons);
+  connect(m_darkCombo, &QComboBox::currentIndexChanged, this,
+          &PreferencesDialog::updateThemeButtons);
+  connect(m_refreshTheme, &QToolButton::clicked, this, [this] {
+    refreshThemeFromCombo(m_themeCombo, QStringLiteral("theme/content"));
+  });
   connect(m_importTheme, &QToolButton::clicked, this,
           &PreferencesDialog::onImportTheme);
   connect(m_deleteTheme, &QToolButton::clicked, this,
           &PreferencesDialog::onDeleteTheme);
   connect(m_openThemesFolder, &QToolButton::clicked, this,
           &PreferencesDialog::onOpenThemesFolder);
+  // Reload and Delete are each scoped to their own combo's selection, so
+  // neither commits a sibling picker's in-flight change behind Cancel's back.
+  connect(m_lightRefresh, &QToolButton::clicked, this, [this] {
+    refreshThemeFromCombo(m_lightCombo, QStringLiteral("theme/light"));
+  });
+  connect(m_darkRefresh, &QToolButton::clicked, this, [this] {
+    refreshThemeFromCombo(m_darkCombo, QStringLiteral("theme/dark"));
+  });
+  connect(m_lightDelete, &QToolButton::clicked, this,
+          [this] { deleteThemeFromCombo(m_lightCombo); });
+  connect(m_darkDelete, &QToolButton::clicked, this,
+          [this] { deleteThemeFromCombo(m_darkCombo); });
 
   // === Fonts ===
   auto *fontsGroup = new QGroupBox(tr("Fonts"), this);
@@ -277,15 +310,23 @@ void PreferencesDialog::populateTypedCombo(QComboBox *combo,
   if(const int idx = combo->findData(selectId); idx >= 0) {
     combo->setCurrentIndex(idx);
   }
+  updateThemeButtons();
 }
 
 void PreferencesDialog::updateThemeButtons() {
   // Refresh and Delete are user-theme affordances: bundled themes live in the
-  // qrc, so they can't be edited in place or removed.
-  const QString id = m_themeCombo->currentData().toString();
-  const bool userTheme = !id.isEmpty() && !ContentTheme::isBundled(id);
-  m_refreshTheme->setVisible(userTheme);
-  m_deleteTheme->setVisible(userTheme);
+  // qrc, so they can't be edited in place or removed. Each combo's pair shows
+  // independently, keyed on that combo's own selection.
+  const auto apply = [](QComboBox *combo, QToolButton *refresh,
+                        QToolButton *del) {
+    const QString id = combo->currentData().toString();
+    const bool userTheme = !id.isEmpty() && !ContentTheme::isBundled(id);
+    refresh->setVisible(userTheme);
+    del->setVisible(userTheme);
+  };
+  apply(m_themeCombo, m_refreshTheme, m_deleteTheme);
+  apply(m_lightCombo, m_lightRefresh, m_lightDelete);
+  apply(m_darkCombo, m_darkRefresh, m_darkDelete);
 }
 
 void PreferencesDialog::updateThemeMode() {
@@ -327,15 +368,17 @@ void PreferencesDialog::onImportTheme() {
                      m_darkCombo->currentData().toString());
 }
 
-void PreferencesDialog::onDeleteTheme() {
-  const QString id = m_themeCombo->currentData().toString();
+void PreferencesDialog::onDeleteTheme() { deleteThemeFromCombo(m_themeCombo); }
+
+void PreferencesDialog::deleteThemeFromCombo(QComboBox *combo) {
+  const QString id = combo->currentData().toString();
   if(id.isEmpty() || ContentTheme::isBundled(id)) return;  // guard
 
   const auto choice = QMessageBox::question(
       this, tr("Delete Theme"),
       tr("Delete the imported theme \"%1\"? This removes the file from your "
          "themes folder.")
-          .arg(m_themeCombo->currentText()));
+          .arg(combo->currentText()));
   if(choice != QMessageBox::Yes) return;
 
   if(!ContentTheme::removeUserTheme(id)) {
@@ -343,21 +386,29 @@ void PreferencesDialog::onDeleteTheme() {
                          tr("Could not delete the theme file."));
     return;
   }
-  // Fall back to the default selection. If the deleted theme was the
-  // persisted choice, ContentTheme::reload() resolves the missing file to
-  // the default on next load, so leaving the setting untouched is safe.
-  populateThemeCombo(QStringLiteral("blackboard"));
+  // Repopulate every picker, preserving each one's current selection. Wherever
+  // the deleted id was selected, findData == -1 falls back to the first entry
+  // (a bundled theme) — and if it was the persisted choice, ContentTheme::
+  // reload() resolves the missing file to the default on next load anyway.
+  populateThemeCombo(m_themeCombo->currentData().toString());
   populateTypedCombo(m_lightCombo, QStringLiteral("light"),
                      m_lightCombo->currentData().toString());
   populateTypedCombo(m_darkCombo, QStringLiteral("dark"),
                      m_darkCombo->currentData().toString());
 }
 
-void PreferencesDialog::onRefreshTheme() {
-  // Persist ONLY the theme selection (not the font/outline widgets, which
-  // would otherwise be committed behind Cancel's back), then re-read it from
-  // disk and re-apply: preferencesApplied() drives the reload + re-render.
-  saveThemeSelection();
+void PreferencesDialog::refreshThemeFromCombo(QComboBox *combo,
+                                              const QString &settingsKey) {
+  // Reload one theme from disk and re-apply it. Persist ONLY this combo's own
+  // key plus followSystem (which decides whether the renderer reads
+  // theme/content or theme/light + theme/dark, and so which picker is even
+  // live). Crucially we do NOT call saveThemeSelection(): writing the sibling
+  // combos would commit their in-flight edits — and the font/outline widgets
+  // are left untouched too — so Cancel still discards everything else.
+  // preferencesApplied() drives the reload + re-render.
+  QSettings s;
+  s.setValue(QStringLiteral("theme/followSystem"), m_followSystem->isChecked());
+  s.setValue(settingsKey, combo->currentData().toString());
   emit preferencesApplied();
 }
 
