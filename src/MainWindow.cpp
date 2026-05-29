@@ -515,13 +515,17 @@ void MainWindow::rebuildRecentMenu() {
 
   auto *reopenAllAction = m_recentMenu->addAction(tr("Reopen &All"));
   connect(reopenAllAction, &QAction::triggered, this, [this]() {
-    // Snapshot before iterating; openFile() can mutate m_recentFiles via
-    // addToRecentFiles(). Walk in reverse (oldest → most-recent) so the
-    // most-recent file ends up as the last tab opened, and therefore
-    // the active one.
+    // Snapshot before iterating; openFile() mutates m_recentFiles — prepending
+    // each file it opens (addToRecentFiles) and dropping any that are gone
+    // (removeFromRecentFiles). Walk in reverse (oldest → most-recent) so the
+    // most-recent file ends up as the last tab opened, and therefore the active
+    // one. Every entry goes through openFile() with no existence pre-check, so a
+    // missing file gets the same "Couldn't open" dialog and pruning that opening
+    // it from the list directly would — without the pre-check, Reopen All used
+    // to skip dead entries silently and leave them in the list forever.
     const QStringList files = m_recentFiles;
     for(auto it = files.rbegin(); it != files.rend(); ++it) {
-      if(QFileInfo::exists(*it)) openFile(*it);
+      openFile(*it);
     }
   });
 
