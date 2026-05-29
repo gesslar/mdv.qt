@@ -4,6 +4,7 @@
 #include <array>
 
 #include <QAbstractTextDocumentLayout>
+#include <QAction>
 #include <QColor>
 #include <QDesktopServices>
 #include <QDir>
@@ -12,9 +13,12 @@
 #include <QFileInfo>
 #include <QFileSystemWatcher>
 #include <QFont>
+#include <QKeySequence>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPalette>
+#include <QRect>
+#include <QRegularExpression>
 #include <QScrollBar>
 #include <QSettings>
 #include <QSplitter>
@@ -22,6 +26,7 @@
 #include <QTextBrowser>
 #include <QTextCharFormat>
 #include <QTextCursor>
+#include <QTextEdit>
 #include <QTextFragment>
 #include <QTextStream>
 #include <QTimer>
@@ -31,6 +36,7 @@
 
 #include "ContentTheme.h"
 #include "EditorGroup.h"
+#include "FindBar.h"
 #include "Markdown.h"
 #include "OutlinePanel.h"
 
@@ -62,6 +68,11 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   // Page background lives on the widget's QPalette::Base, not in the
   // document's CSS — see applyDocumentPalette() comment.
   applyDocumentPalette();
+  // The view itself takes no focus; delegate to the browser so a plain
+  // setFocus() on a DocumentView lands keyboard focus in the text (where
+  // scrolling and the Ctrl+F shortcut need it). Without this, the view's
+  // default NoFocus policy makes setFocus() a no-op.
+  setFocusProxy(m_browser);
   connect(m_browser, &QWidget::customContextMenuRequested, this,
           &DocumentView::onContextMenuRequested);
   // Scroll-spy: track which section is at the top of the viewport so the
@@ -139,6 +150,32 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   m_reloadTimer = new QTimer(this);
   m_reloadTimer->setSingleShot(true);
   connect(m_reloadTimer, &QTimer::timeout, this, &DocumentView::reloadFromDisk);
+
+  // Find bar: parented to the browser so it floats over the text. Hidden until
+  // Ctrl+F. Browser resize repositions it (handled in eventFilter); theme
+  // refresh restyles it.
+  m_findBar = new FindBar(m_browser);
+  restyleFindBar();
+  m_browser->installEventFilter(this);
+  connect(m_findBar, &FindBar::queryChanged, this, &DocumentView::runFind);
+  connect(m_findBar, &FindBar::findNext, this, [this] { stepMatch(+1); });
+  connect(m_findBar, &FindBar::findPrevious, this, [this] { stepMatch(-1); });
+  connect(m_findBar, &FindBar::closed, this, &DocumentView::clearFind);
+
+  // Ctrl+F opens it; F3 / Shift+F3 step matches even while focus is in the
+  // text. Widget-with-children context routes them to whichever split has
+  // focus.
+  const auto addFindShortcut = [this](QKeySequence::StandardKey key,
+                                      auto handler) {
+    auto *a = new QAction(this);
+    a->setShortcut(key);
+    a->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    connect(a, &QAction::triggered, this, handler);
+    addAction(a);
+  };
+  addFindShortcut(QKeySequence::Find, [this] { showFindBar(); });
+  addFindShortcut(QKeySequence::FindNext, [this] { stepMatch(+1); });
+  addFindShortcut(QKeySequence::FindPrevious, [this] { stepMatch(-1); });
 }
 
 bool DocumentView::loadFile(const QString &path) {
@@ -202,6 +239,9 @@ void DocumentView::refresh() {
   applyDocumentFont();
   applyDocumentPalette();
 
+  // Colors may have changed; restyle the bar and re-tint existing highlights.
+  restyleFindBar();
+
   if(m_filePath.isEmpty()) return;
 
   // Capture position before re-rendering; restore via the same anchor
@@ -209,6 +249,10 @@ void DocumentView::refresh() {
   const int anchor = topAnchor();
   loadFile(m_filePath);
   scrollToAnchor(anchor);
+
+  // The re-render replaced the document content, invalidating match offsets;
+  // rebuild against the new layout if the bar is open.
+  if(m_findBar->isVisible()) runFind();
 }
 
 void DocumentView::applyDocumentFont() {
@@ -278,6 +322,12 @@ void DocumentView::applyHeadingSizes() {
 }
 
 bool DocumentView::eventFilter(QObject *watched, QEvent *event) {
+  if(watched == m_browser && event->type() == QEvent::Resize) {
+    // Keep the floating find bar pinned to the top-right as the text area
+    // resizes (group split/resize, outline toggle).
+    if(m_findBar && m_findBar->isVisible()) positionFindBar();
+    return false;  // observe only
+  }
   if(watched == m_browser->viewport() && event->type() == QEvent::Wheel) {
     auto *wheel = static_cast<QWheelEvent *>(event);
     if(wheel->modifiers() & Qt::ControlModifier) {
@@ -611,6 +661,9 @@ void DocumentView::reloadFromDisk() {
 
   // Re-point the watcher (an atomic save dropped the path).
   armWatch();
+
+  // Match offsets are stale against the new content; rebuild if searching.
+  if(m_findBar->isVisible()) runFind();
 }
 
 int DocumentView::remapAnchor(int pos, const QString &oldText,
@@ -644,4 +697,223 @@ int DocumentView::remapAnchor(int pos, const QString &oldText,
         changeStart;  // anchor sat inside the edit — best-effort positional
   }
   return std::clamp(mapped, 0, newLen);
+}
+
+void DocumentView::showFindBar() {
+  // Seed from the current selection (single-line, reasonably short) the way VS
+  // Code does, so "select a word, Ctrl+F" searches it immediately.
+  QString seed;
+  if(const QTextCursor cur = m_browser->textCursor(); cur.hasSelection()) {
+    const QString sel = cur.selectedText();
+    if(!sel.contains(QChar::ParagraphSeparator) && sel.length() <= 200) {
+      seed = sel;
+    }
+  }
+  m_findBar->activate(seed);
+  positionFindBar();
+  // activate() only emits queryChanged() when the text actually changes, so
+  // run explicitly to (re)highlight when reopening on an unchanged query.
+  runFind();
+}
+
+void DocumentView::runFind() {
+  const QString text = m_findBar->query();
+  m_matches.clear();
+  m_currentMatch = -1;
+
+  if(text.isEmpty()) {
+    applyFindHighlights();
+    m_findBar->setMatchInfo(0, 0);
+    return;
+  }
+
+  QTextDocument *doc = m_browser->document();
+  const bool cs = m_findBar->caseSensitive();
+  const bool ww = m_findBar->wholeWord();
+  const bool useRe = m_findBar->useRegex();
+
+  // Plain-text path uses QTextDocument's find flags; regex path drives a
+  // QRegularExpression (case + whole-word folded into pattern/options).
+  QTextDocument::FindFlags flags;
+  QRegularExpression re;
+  if(useRe) {
+    QString pattern = ww ? QStringLiteral("\\b(?:%1)\\b").arg(text) : text;
+    re.setPattern(pattern);
+    re.setPatternOptions(cs ? QRegularExpression::NoPatternOption
+                            : QRegularExpression::CaseInsensitiveOption);
+    if(!re.isValid()) {
+      m_findBar->setRegexError(true);
+      applyFindHighlights();  // clears
+      return;
+    }
+  } else {
+    if(cs) flags |= QTextDocument::FindCaseSensitively;
+    if(ww) flags |= QTextDocument::FindWholeWords;
+  }
+
+  QTextCursor c(doc);  // starts at position 0
+  const int charCount = doc->characterCount();
+  while(true) {
+    const QTextCursor found =
+        useRe ? doc->find(re, c, flags) : doc->find(text, c, flags);
+    if(found.isNull()) break;
+
+    const int start = found.selectionStart();
+    const int end = found.selectionEnd();
+    if(end <= start) {
+      // Zero-width regex match (^, $, \b): advance one char so we don't spin.
+      if(start + 1 >= charCount) break;
+      c.setPosition(start + 1);
+      continue;
+    }
+    m_matches.append({start, end - start});
+    c.setPosition(end);
+  }
+
+  if(m_matches.isEmpty()) {
+    applyFindHighlights();
+    m_findBar->setMatchInfo(0, 0);
+    return;
+  }
+
+  // Current match = the first at or after the top of the viewport, so the
+  // selection lands on something the reader can already (almost) see.
+  const int anchorPos = topAnchor();
+  m_currentMatch = 0;
+  for(int i = 0; i < m_matches.size(); ++i) {
+    if(m_matches[i].first >= anchorPos) {
+      m_currentMatch = i;
+      break;
+    }
+  }
+  applyFindHighlights();
+  m_findBar->setMatchInfo(m_currentMatch + 1, static_cast<int>(m_matches.size()));
+  revealMatch(m_currentMatch);
+}
+
+void DocumentView::stepMatch(int delta) {
+  // F3 / Shift+F3 reach here even when the bar is closed; ignore them then.
+  if(!m_findBar->isVisible() || m_matches.isEmpty()) return;
+
+  const int n = static_cast<int>(m_matches.size());
+  m_currentMatch = (m_currentMatch + delta + n) % n;
+  applyFindHighlights();
+  m_findBar->setMatchInfo(m_currentMatch + 1, n);
+  revealMatch(m_currentMatch);
+}
+
+void DocumentView::applyFindHighlights() {
+  QList<QTextEdit::ExtraSelection> sels;
+  if(!m_matches.isEmpty()) {
+    // Both colors derive from the theme accent; the current match gets a
+    // stronger alpha so it stands out among the dimmer all-match highlights.
+    QColor accent(
+        ContentTheme::active().color(QStringLiteral("heading.foreground")));
+    if(!accent.isValid()) {
+      accent = m_browser->palette().color(QPalette::Highlight);
+    }
+    QColor allBg = accent;
+    allBg.setAlpha(0x40);
+    QColor curBg = accent;
+    curBg.setAlpha(0xB0);
+
+    QTextDocument *doc = m_browser->document();
+    for(int i = 0; i < m_matches.size(); ++i) {
+      QTextEdit::ExtraSelection sel;
+      sel.cursor = QTextCursor(doc);
+      sel.cursor.setPosition(m_matches[i].first);
+      sel.cursor.setPosition(m_matches[i].first + m_matches[i].second,
+                             QTextCursor::KeepAnchor);
+      sel.format.setBackground(i == m_currentMatch ? curBg : allBg);
+      sels.append(sel);
+    }
+  }
+  m_browser->setExtraSelections(sels);
+}
+
+void DocumentView::revealMatch(int i) {
+  if(i < 0 || i >= m_matches.size()) return;
+
+  QTextCursor cur(m_browser->document());
+  cur.setPosition(m_matches[i].first);
+  // cursorRect is viewport-relative to the current scroll offset.
+  const QRect r = m_browser->cursorRect(cur);
+  const int viewH = m_browser->viewport()->height();
+  if(r.top() < 0 || r.bottom() > viewH) {
+    QScrollBar *vbar = m_browser->verticalScrollBar();
+    vbar->setValue(vbar->value() + r.top() - (viewH / 3));
+  }
+}
+
+void DocumentView::clearFind() {
+  m_matches.clear();
+  m_currentMatch = -1;
+  m_browser->setExtraSelections({});
+  m_browser->setFocus();
+}
+
+void DocumentView::positionFindBar() {
+  m_findBar->adjustSize();
+  constexpr int margin = 12;
+  QScrollBar *vbar = m_browser->verticalScrollBar();
+  const int sbw = (vbar && vbar->isVisible()) ? vbar->width() : 0;
+  const int x =
+      std::max(margin, m_browser->width() - m_findBar->width() - sbw - margin);
+  m_findBar->move(x, margin);
+}
+
+void DocumentView::restyleFindBar() {
+  const ContentTheme &t = ContentTheme::active();
+  const auto colorOr = [&t](const QString &key, const QString &fallback) {
+    const QString v = t.color(key);
+    return v.isEmpty() ? fallback : v;
+  };
+  const QString bg =
+      colorOr(QStringLiteral("text.background"), QStringLiteral("#222"));
+  const QString fg =
+      colorOr(QStringLiteral("text.foreground"), QStringLiteral("#ddd"));
+  const QString fieldBg = colorOr(QStringLiteral("blockquote.background"), bg);
+  const QString err =
+      colorOr(QStringLiteral("syntax.error"), QStringLiteral("#e06c75"));
+
+  // Borders derive from the foreground at low alpha so they read as subtle
+  // dividers on either a light or dark page; the colorful accent is reserved
+  // for active toggle/hover states so the checked toggles pop.
+  QColor fgc(fg);
+  if(!fgc.isValid()) fgc = QColor(0xDD, 0xDD, 0xDD);
+  // The find bar is application chrome, not document content, so its accent
+  // follows the system/app palette rather than the markdown theme. (Highlight
+  // is the pre-6.6 equivalent of Accent and a safe fallback.)
+  const QPalette pal = m_findBar->palette();
+  QColor accent = pal.color(QPalette::Accent);
+  if(!accent.isValid()) accent = pal.color(QPalette::Highlight);
+
+  const auto rgba = [](const QColor &c, int alphaPct) {
+    return QStringLiteral("rgba(%1,%2,%3,%4%)")
+        .arg(c.red())
+        .arg(c.green())
+        .arg(c.blue())
+        .arg(alphaPct);
+  };
+  const QString outerBorder = rgba(fgc, 18);   // faint container edge
+  const QString fieldBorder = rgba(fgc, 32);   // visible input box edge
+  const QString tint = rgba(accent, 40);       // toggle hover
+  const QString tintStrong = rgba(accent, 70); // toggle checked
+
+  m_findBar->setStyleSheet(
+      QStringLiteral(
+          "#findBar { background-color: %1; border: 1px solid %2; "
+          "border-radius: 6px; }"
+          "#findInputFrame { background-color: %3; border: 1px solid %4; "
+          "border-radius: 4px; }"
+          "#findInputFrame[error=\"true\"] { border: 1px solid %5; }"
+          "#findInputFrame QLineEdit { background: transparent; color: %6; "
+          "border: none; }"
+          "#findBar QLabel { color: %6; }"
+          "#findBar QToolButton { color: %6; border: none; border-radius: 3px; "
+          "padding: 2px; }"
+          "#findBar QToolButton:hover { background-color: %7; }"
+          "#findBar QToolButton:checked { background-color: %8; }")
+          .arg(bg, outerBorder, fieldBg, fieldBorder, err, fg, tint,
+               tintStrong));
 }

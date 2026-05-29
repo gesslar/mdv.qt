@@ -9,6 +9,7 @@
 #include "Markdown.h"
 #include "OutlinePanel.h"  // OutlineSide
 
+class FindBar;
 class OutlinePanel;
 class QFileSystemWatcher;
 class QSplitter;
@@ -88,6 +89,11 @@ public:
   // sash and keep pinned tabs clustered. No-op if the state is unchanged.
   void setPinned(bool on);
 
+  // Open the find bar (Ctrl+F). Seeds the query from the current selection
+  // when there is one, VS Code-style. Re-running while already open just
+  // refocuses and re-selects the field.
+  void showFindBar();
+
   bool isWatching() const { return m_watching; }
   // Start/stop watching the file on disk. While watching, an external write
   // triggers an in-place reload that preserves zoom and scroll position.
@@ -134,6 +140,7 @@ private:
   QTextBrowser *m_browser = nullptr;
   QSplitter *m_splitter = nullptr;
   OutlinePanel *m_outline = nullptr;
+  FindBar *m_findBar = nullptr;
   bool m_outlineVisible = true;
   OutlineSide m_outlineSide = OutlineSide::Left;
   int m_outlineWidth = 240;
@@ -203,4 +210,38 @@ private:
   // offset falls inside the changed region.
   int remapAnchor(int pos, const QString &oldText,
                   const QString &newText) const;
+
+  // === Find ===
+  // Re-scan the document for the find bar's current query/flags, rebuild the
+  // match list and highlights, pick the current match (nearest to the prior
+  // one, else the first), and report the count back to the bar. Empty query or
+  // invalid regex clears everything.
+  void runFind();
+
+  // Move the current match by delta (+1 next, -1 previous), wrapping around,
+  // and reveal it. No-op with no matches.
+  void stepMatch(int delta);
+
+  // Paint all matches with a subtle accent background and the current match
+  // with a stronger one, via QTextEdit extra selections. Read by runFind() and
+  // stepMatch(); also re-applied on theme refresh so the colors track.
+  void applyFindHighlights();
+
+  // Scroll the viewport so match index <i> is comfortably in view without
+  // disturbing the user's own text selection.
+  void revealMatch(int i);
+
+  // Hide the bar, drop the match list, and clear the highlights.
+  void clearFind();
+
+  // Park the bar at the top-right of the browser (inside any vertical
+  // scrollbar) and (re)apply its themed stylesheet. Called on show, on browser
+  // resize, and on theme refresh.
+  void positionFindBar();
+  void restyleFindBar();
+
+  // Matches as (start, length) character offsets in document order, and the
+  // index of the current one (-1 when there are none).
+  QList<QPair<int, int>> m_matches;
+  int m_currentMatch = -1;
 };

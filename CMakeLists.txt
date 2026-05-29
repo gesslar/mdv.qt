@@ -344,6 +344,8 @@ qt_add_executable(mdv
     src/CodiconFont.h
     src/DocumentView.cpp
     src/DocumentView.h
+    src/FindBar.cpp
+    src/FindBar.h
     src/OutlinePanel.cpp
     src/OutlinePanel.h
     src/EditorGroup.cpp
