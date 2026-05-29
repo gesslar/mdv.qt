@@ -492,7 +492,16 @@ bool DocumentView::tryApplyAnchor() {
   // visible" behavior on focus / show events doesn't yank the scroll
   // back to wherever the cursor was previously parked.
   m_browser->setTextCursor(cursor);
-  m_browser->verticalScrollBar()->setValue(int(rect.y()));
+  // blockBoundingRect is in document coordinates, where content starts at
+  // y == documentMargin (the top margin sits above the first block). The
+  // scrollbar value is the document-y shown at the top of the viewport, so a
+  // block lands at the top when value == blockY - documentMargin — the same
+  // relation currentHeadingId() inverts for scroll-spy. Without subtracting the
+  // margin we overshoot by it on every restore; it's only visible at the very
+  // top, where it scrolls the top margin out of view (restoring anchor 0 would
+  // otherwise land at documentMargin instead of 0).
+  const int target = int(rect.y() - doc->documentMargin());
+  m_browser->verticalScrollBar()->setValue(target);
 
   // Do not clear m_pendingAnchor or disconnect here — the timer manages
   // the lifetime of the re-apply window so later layout passes can
