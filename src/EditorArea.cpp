@@ -37,7 +37,12 @@ DocumentView *EditorArea::openFile(const QString &path) {
 
   if(const int existing = m_active->indexOfFile(canonical); existing >= 0) {
     m_active->setCurrentIndex(existing);
-    return m_active->documentAt(existing);
+    DocumentView *doc = m_active->documentAt(existing);
+    // Focus the content on every open path (menu, recent, reopen, drop), not
+    // just the ones that incidentally restore focus to the tab widget. Keeps
+    // keyboard scrolling and Ctrl+F live without a click into the document.
+    if(doc) doc->setFocus();
+    return doc;
   }
 
   auto *doc = new DocumentView(m_active);
@@ -47,6 +52,7 @@ DocumentView *EditorArea::openFile(const QString &path) {
   }
 
   m_active->addDocument(doc);
+  doc->setFocus();
   return doc;
 }
 
