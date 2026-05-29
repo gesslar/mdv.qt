@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Qt 6.11 or newer** (Widgets module)
+- **Qt 6.10 or newer** (Widgets module)
 - **md4c** — CommonMark + GFM markdown parser
 - **KSyntaxHighlighting** (KDE Frameworks 6) — code-block syntax highlighting
 - **CMake 3.21 or newer**
@@ -43,7 +43,7 @@ sudo pacman -S qt6-base md4c syntax-highlighting cmake ninja gcc qtcreator
 
 ### macOS
 
-The official **[Qt online installer](https://www.qt.io/download-qt-installer)** is the easiest path. Pick Qt 6.11+ with the Widgets module. Then:
+The official **[Qt online installer](https://www.qt.io/download-qt-installer)** is the easiest path. Pick Qt 6.10+ with the Widgets module. Then:
 
 ```bash
 brew install md4c cmake ninja
@@ -61,7 +61,7 @@ KSyntaxHighlighting (KDE Frameworks 6) isn't in Homebrew core; on macOS install 
 
 ### Windows
 
-Install the official **[Qt online installer](https://www.qt.io/download-qt-installer)** and select Qt 6.11+ with **MinGW 64-bit** (the version this project was developed against; MSVC 2022 64-bit also works). Include **Qt Linguist / qttools** in the install — KSyntaxHighlighting's translation step needs `lrelease` on `PATH`. The Qt installer also bundles CMake, Ninja, and Qt Creator.
+Install the official **[Qt online installer](https://www.qt.io/download-qt-installer)** and select Qt 6.10+ with **MinGW 64-bit** (the version this project was developed against; MSVC 2022 64-bit also works). Include **Qt Linguist / qttools** in the install — KSyntaxHighlighting's translation step needs `lrelease` on `PATH`. The Qt installer also bundles CMake, Ninja, and Qt Creator.
 
 Two extra prereqs that the Qt installer doesn't provide:
 
@@ -135,7 +135,7 @@ the link line if you add a library. RPM `Requires:` are auto-detected by
 ### Flatpak
 
 A single-file `.flatpak` is built with `flatpak-builder` against the KDE runtime
-(`org.kde.Platform` 6.9), which already ships Qt 6 and KSyntaxHighlighting — so
+(`org.kde.Platform` 6.10), which already ships Qt 6 and KSyntaxHighlighting — so
 the only externals built alongside mdv are md4c and QWindowKit. The manifest
 `dev.gesslar.mdv.yml` builds straight from this checkout (no pushed tag required).
 
@@ -150,7 +150,7 @@ the flathub remote configured:
 - Debian/Ubuntu: `sudo apt install flatpak flatpak-builder`
 - `flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo`
 
-The first `make flatpak` pulls `org.kde.Platform` / `org.kde.Sdk` 6.9 (a large
+The first `make flatpak` pulls `org.kde.Platform` / `org.kde.Sdk` 6.10 (a large
 one-time download). Install and run the bundle with:
 
 ```bash

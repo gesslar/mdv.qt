@@ -102,13 +102,15 @@ jobs:
       # Qt 6 + a matching MinGW (the toolchain DEVELOPMENT.md targets first).
       # `cache: true` keeps the ~2 GB Qt download out of the critical path on
       # subsequent runs.
-      # Qt 6.9.0 is the minimum KSyntaxHighlighting v6.26 (what CMakeLists
-      # fetches in-tree on Windows) accepts — see _deps/ksyntaxhighlighting-src
-      # CMakeLists.txt :42, which calls find_package(Qt6 6.9.0 ...).
+      # Install 6.10 to match the project's CMake floor. KSyntaxHighlighting
+      # v6.26 (fetched in-tree on Windows) only needs >= 6.9.0 — see
+      # _deps/ksyntaxhighlighting-src CMakeLists.txt :42 — so 6.10 clears it.
+      # 6.11 isn't an option matrix-wide: the Flatpak job's KDE runtime
+      # (org.kde.Platform) tops out at 6.10 on Flathub.
       - name: Install Qt 6 + MinGW
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.9.0'
+          version: '6.10.0'
           host: windows
           target: desktop
           arch: win64_mingw
@@ -154,7 +156,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Only the flatpak entry pulls org.kde.Platform/Sdk 6.9 (~1.5 GB);
+      # Only the flatpak entry pulls org.kde.Platform/Sdk 6.10 (~1.5 GB);
       # docker/dist.sh stores it under ~/.cache/mdv-flatpak. The other three
       # formats don't touch the KDE runtime at all, so the cache step is gated
       # on matrix.format to avoid a useless save/restore on those entries.
@@ -163,7 +165,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.cache/mdv-flatpak
-          key: mdv-flatpak-kde-6.9-${{ runner.os }}
+          key: mdv-flatpak-kde-6.10-${{ runner.os }}
 
       # Each matrix entry builds its own format inside the pinned Fedora
       # container. Runners are independent, so the four run in parallel —
