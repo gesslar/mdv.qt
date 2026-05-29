@@ -152,10 +152,10 @@ DocumentView::DocumentView(QWidget *parent) : QWidget(parent) {
   connect(m_reloadTimer, &QTimer::timeout, this, &DocumentView::reloadFromDisk);
 
   // Find bar: parented to the browser so it floats over the text. Hidden until
-  // Ctrl+F. Browser resize repositions it (handled in eventFilter); theme
-  // refresh restyles it.
+  // Ctrl+F. Browser resize repositions it (handled in eventFilter). It's
+  // application chrome, so it themes itself from the system palette — no
+  // content-theme restyle hook here.
   m_findBar = new FindBar(m_browser);
-  restyleFindBar();
   m_browser->installEventFilter(this);
   connect(m_findBar, &FindBar::queryChanged, this, &DocumentView::runFind);
   connect(m_findBar, &FindBar::findNext, this, [this] { stepMatch(+1); });
@@ -238,9 +238,6 @@ void DocumentView::refresh() {
   m_browser->document()->setDefaultStyleSheet(ContentTheme::active().qss());
   applyDocumentFont();
   applyDocumentPalette();
-
-  // Colors may have changed; restyle the bar and re-tint existing highlights.
-  restyleFindBar();
 
   if(m_filePath.isEmpty()) return;
 
@@ -862,58 +859,3 @@ void DocumentView::positionFindBar() {
   m_findBar->move(x, margin);
 }
 
-void DocumentView::restyleFindBar() {
-  const ContentTheme &t = ContentTheme::active();
-  const auto colorOr = [&t](const QString &key, const QString &fallback) {
-    const QString v = t.color(key);
-    return v.isEmpty() ? fallback : v;
-  };
-  const QString bg =
-      colorOr(QStringLiteral("text.background"), QStringLiteral("#222"));
-  const QString fg =
-      colorOr(QStringLiteral("text.foreground"), QStringLiteral("#ddd"));
-  const QString fieldBg = colorOr(QStringLiteral("blockquote.background"), bg);
-  const QString err =
-      colorOr(QStringLiteral("syntax.error"), QStringLiteral("#e06c75"));
-
-  // Borders derive from the foreground at low alpha so they read as subtle
-  // dividers on either a light or dark page; the colorful accent is reserved
-  // for active toggle/hover states so the checked toggles pop.
-  QColor fgc(fg);
-  if(!fgc.isValid()) fgc = QColor(0xDD, 0xDD, 0xDD);
-  // The find bar is application chrome, not document content, so its accent
-  // follows the system/app palette rather than the markdown theme, with a
-  // defensive Highlight fallback if a platform leaves Accent unset.
-  const QPalette pal = m_findBar->palette();
-  QColor accent = pal.color(QPalette::Accent);
-  if(!accent.isValid()) accent = pal.color(QPalette::Highlight);
-
-  const auto rgba = [](const QColor &c, int alphaPct) {
-    return QStringLiteral("rgba(%1,%2,%3,%4%)")
-        .arg(c.red())
-        .arg(c.green())
-        .arg(c.blue())
-        .arg(alphaPct);
-  };
-  const QString outerBorder = rgba(fgc, 18);   // faint container edge
-  const QString fieldBorder = rgba(fgc, 32);   // visible input box edge
-  const QString tint = rgba(accent, 40);       // toggle hover
-  const QString tintStrong = rgba(accent, 70); // toggle checked
-
-  m_findBar->setStyleSheet(
-      QStringLiteral(
-          "#findBar { background-color: %1; border: 1px solid %2; "
-          "border-radius: 6px; }"
-          "#findInputFrame { background-color: %3; border: 1px solid %4; "
-          "border-radius: 4px; }"
-          "#findInputFrame[error=\"true\"] { border: 1px solid %5; }"
-          "#findInputFrame QLineEdit { background: transparent; color: %6; "
-          "border: none; }"
-          "#findBar QLabel { color: %6; }"
-          "#findBar QToolButton { color: %6; border: none; border-radius: 3px; "
-          "padding: 2px; }"
-          "#findBar QToolButton:hover { background-color: %7; }"
-          "#findBar QToolButton:checked { background-color: %8; }")
-          .arg(bg, outerBorder, fieldBg, fieldBorder, err, fg, tint,
-               tintStrong));
-}

@@ -18,6 +18,7 @@
 #include <QSignalBlocker>
 #include <QStatusBar>
 #include <QStyleHints>
+#include <QTimer>
 #include <QToolButton>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -205,9 +206,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   refreshStatusBarStyle();
   connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
           [this](Qt::ColorScheme) {
-            refreshStatusBarStyle();
+            // On Windows colorSchemeChanged fires *before* Qt swaps the
+            // palette, so refreshing inline would re-read the old (light)
+            // colors. Defer to the next event-loop turn, once the swap lands.
+            QTimer::singleShot(0, this, [this] {
+              refreshStatusBarStyle();
+            });
             // When following the system scheme, the active content theme
-            // tracks it — reload and re-render every open document.
+            // tracks it — reload and re-render every open document. This reads
+            // colorScheme() directly (not the palette), so it's fine inline.
             if(QSettings()
                    .value(QStringLiteral("theme/followSystem"), false)
                    .toBool()) {
@@ -435,14 +442,18 @@ void MainWindow::refreshStatusBarStyle() {
   // WindowText washes for hover/press (which read on any scheme). Zero
   // vertical padding lets the status bar center the button to text height;
   // horizontal padding gives the hover pill room while keeping a small inset.
-  const QPalette pal = palette();
+  // Read the application palette, not this window's palette() — the explicit
+  // stylesheet below folds its colors back into the widget palette, so reading
+  // our own would feed on the sheet we just set. The app palette is the clean
+  // system source.
+  const QPalette pal = QGuiApplication::palette();
   const QColor txt = pal.color(QPalette::WindowText);
   const QString fg = txt.name();
   const QString dis =
       pal.color(QPalette::Disabled, QPalette::WindowText).name();
   const QString hover = cssRgba(txt, 0.18);
   const QString press = cssRgba(txt, 0.30);
-  statusBar()->setStyleSheet(
+  const QString sheet =
       QStringLiteral(
           "QStatusBar { color: %1; }"
           "QStatusBar::item { border: none; }"
@@ -451,14 +462,19 @@ void MainWindow::refreshStatusBarStyle() {
           "QStatusBar QToolButton:disabled { color: %2; }"
           "QStatusBar QToolButton:enabled:hover { background: %3; }"
           "QStatusBar QToolButton:enabled:pressed { background: %4; }")
-          .arg(fg, dis, hover, press));
+          .arg(fg, dis, hover, press);
+  if(sheet != statusBar()->styleSheet()) statusBar()->setStyleSheet(sheet);
 }
 
 void MainWindow::changeEvent(QEvent *e) {
   QMainWindow::changeEvent(e);
-  // ApplicationPaletteChange covers both accent and light/dark shifts; the
-  // explicit stylesheet would otherwise stay frozen at its old colors.
-  if(e->type() == QEvent::ApplicationPaletteChange) refreshStatusBarStyle();
+  // The explicit stylesheet would otherwise stay frozen at its old colors.
+  // ApplicationPaletteChange is what Linux delivers when the app palette swaps;
+  // Windows delivers PaletteChange to the widget instead. Both arrive *after*
+  // the palette is updated, so refreshStatusBarStyle() reads fresh colors.
+  if(e->type() == QEvent::ApplicationPaletteChange ||
+     e->type() == QEvent::PaletteChange)
+    refreshStatusBarStyle();
 }
 
 void MainWindow::onCurrentDocumentChanged(DocumentView *doc) {

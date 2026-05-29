@@ -235,10 +235,9 @@ private:
   void clearFind();
 
   // Park the bar at the top-right of the browser (inside any vertical
-  // scrollbar) and (re)apply its themed stylesheet. Called on show, on browser
-  // resize, and on theme refresh.
+  // scrollbar). Called on show and on browser resize. The bar themes itself
+  // (system palette), so there's no restyle hook here.
   void positionFindBar();
-  void restyleFindBar();
 
   // Matches as (start, length) character offsets in document order, and the
   // index of the current one (-1 when there are none).

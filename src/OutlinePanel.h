@@ -44,6 +44,9 @@ protected:
   // Re-pull the stylesheet when the system palette shifts (accent or
   // light/dark), so the panel keeps matching the surrounding chrome.
   void changeEvent(QEvent *e) override;
+  // Tree-viewport tooltips: show the full heading text only when the row is too
+  // narrow to display it (i.e. the label is elided).
+  bool eventFilter(QObject *obj, QEvent *e) override;
 
 private:
   void refreshTheme();

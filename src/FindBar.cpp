@@ -2,14 +2,19 @@
 
 #include <QEvent>
 #include <QFont>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPalette>
 #include <QSettings>
 #include <QStyle>
+#include <QStyleHints>
+#include <QTimer>
 #include <QToolButton>
 
+#include "ChromeStyle.h"
 #include "CodiconFont.h"
 
 namespace {
@@ -98,6 +103,17 @@ FindBar::FindBar(QWidget *parent) : QFrame(parent) {
   connect(m_next, &QToolButton::clicked, this, &FindBar::findNext);
   connect(m_close, &QToolButton::clicked, this, &FindBar::deactivate);
 
+  refreshTheme();
+  connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
+          [this](Qt::ColorScheme) {
+            // On Windows colorSchemeChanged fires *before* Qt swaps the
+            // palette, so refreshing inline would re-read the old colors. Defer
+            // to the next event-loop turn, once the swap has landed.
+            QTimer::singleShot(0, this, [this] {
+              refreshTheme();
+            });
+          });
+
   hide();
 }
 
@@ -165,6 +181,54 @@ void FindBar::updateFieldState() {
   m_inputFrame->style()->polish(m_inputFrame);
 }
 
+void FindBar::refreshTheme() {
+  // The find bar is application chrome, so every color comes from the system
+  // palette (like the title bar / outline), never the document's content theme.
+  // Read the *application* palette: setStyleSheet() below folds its colors into
+  // our own palette(), so reading that would feed on the sheet we just set.
+  // Window/WindowText for the bar surface and labels (matching the rest of the
+  // chrome), Base/Text for the input box so the field reads as a distinct
+  // text-entry surface, Accent for the toggle hover/checked tints, and faint
+  // WindowText washes for the borders so they read on a light or dark desktop.
+  const QPalette pal = QGuiApplication::palette();
+  const QColor win = pal.color(QPalette::WindowText);
+  const QString bg = pal.color(QPalette::Window).name();
+  const QString fieldBg = pal.color(QPalette::Base).name();
+  const QString fg = win.name();
+  const QString fieldFg = pal.color(QPalette::Text).name();
+  const QString outerBorder = cssRgba(win, 0.18);  // faint container edge
+  const QString fieldBorder = cssRgba(win, 0.32);  // visible input box edge
+
+  QColor accent = pal.color(QPalette::Accent);
+  if(!accent.isValid()) accent = pal.color(QPalette::Highlight);
+  const QString tint = cssRgba(accent, 0.40);        // toggle hover
+  const QString tintStrong = cssRgba(accent, 0.70);  // toggle checked
+
+  // Invalid-regex border: no palette role fits, so use a fixed red that reads
+  // on both light and dark surfaces.
+  const QString err = QStringLiteral("#e06c75");
+
+  const QString sheet =
+      QStringLiteral(
+          "#findBar { background-color: %1; border: 1px solid %2; "
+          "border-radius: 6px; }"
+          "#findInputFrame { background-color: %3; border: 1px solid %4; "
+          "border-radius: 4px; }"
+          "#findInputFrame[error=\"true\"] { border: 1px solid %5; }"
+          "#findInputFrame QLineEdit { background: transparent; color: %6; "
+          "border: none; }"
+          "#findBar QLabel { color: %7; }"
+          "#findBar QToolButton { color: %7; border: none; border-radius: 3px; "
+          "padding: 2px; }"
+          "#findBar QToolButton:hover { background-color: %8; }"
+          "#findBar QToolButton:checked { background-color: %9; }")
+          .arg(bg, outerBorder, fieldBg, fieldBorder, err, fieldFg, fg, tint,
+               tintStrong);
+  // Re-applying an identical sheet re-polishes and re-emits PaletteChange,
+  // which lands back in changeEvent() — skip the no-op to break that loop.
+  if(sheet != styleSheet()) setStyleSheet(sheet);
+}
+
 bool FindBar::eventFilter(QObject *watched, QEvent *event) {
   if(watched == m_input && event->type() == QEvent::KeyPress) {
     auto *ke = static_cast<QKeyEvent *>(event);
@@ -185,4 +249,15 @@ bool FindBar::eventFilter(QObject *watched, QEvent *event) {
     }
   }
   return QFrame::eventFilter(watched, event);
+}
+
+void FindBar::changeEvent(QEvent *e) {
+  QFrame::changeEvent(e);
+  // The explicit stylesheet would otherwise stay frozen at its old colors.
+  // ApplicationPaletteChange is what Linux delivers when the app palette swaps;
+  // Windows delivers PaletteChange to the widget instead. Both arrive *after*
+  // the palette is updated, so refreshTheme() reads fresh colors either way.
+  if(e->type() == QEvent::ApplicationPaletteChange ||
+     e->type() == QEvent::PaletteChange)
+    refreshTheme();
 }
