@@ -5,17 +5,47 @@
 #include <QFont>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QHelpEvent>
 #include <QLabel>
 #include <QMenu>
+#include <QPainter>
 #include <QPalette>
+#include <QProxyStyle>
 #include <QStyleHints>
+#include <QStyleOption>
+#include <QStyleOptionViewItem>
+#include <QTimer>
 #include <QToolButton>
+#include <QToolTip>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 
 #include "ChromeStyle.h"
 #include "CodiconFont.h"
+
+namespace {
+
+// The Windows 11 style paints a vertical accent "pill" at the left edge of a
+// selected/current item-view row. We already render selection as a full-row
+// wash via the stylesheet; the native pill sits at the same left edge as the
+// expand chevron (so it collides on flush/root rows) and doesn't exist on other
+// platforms at all. Suppressing just this primitive makes selection read the
+// same everywhere — the stylesheet still draws the row background, so nothing
+// else changes.
+class NoSelectionPillStyle : public QProxyStyle {
+public:
+  using QProxyStyle::QProxyStyle;
+
+  void drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPainter *p,
+                     const QWidget *w) const override {
+    if(pe == QStyle::PE_PanelItemViewItem || pe == QStyle::PE_PanelItemViewRow)
+      return;
+    QProxyStyle::drawPrimitive(pe, opt, p, w);
+  }
+};
+
+}  // namespace
 
 OutlinePanel::OutlinePanel(QWidget *parent) : QWidget(parent) {
   setObjectName(QStringLiteral("OutlinePanel"));
@@ -75,6 +105,13 @@ OutlinePanel::OutlinePanel(QWidget *parent) : QWidget(parent) {
   m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
   m_tree->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   m_tree->setExpandsOnDoubleClick(false);
+  // Drop the Windows 11 selection accent pill (see NoSelectionPillStyle); the
+  // proxy is parented to the tree so it lives exactly as long.
+  auto *treeStyle = new NoSelectionPillStyle;
+  treeStyle->setParent(m_tree);
+  m_tree->setStyle(treeStyle);
+  // Watch the viewport so we can show a tooltip on elided rows only.
+  m_tree->viewport()->installEventFilter(this);
   connect(m_tree, &QTreeWidget::itemClicked, this,
           [this](QTreeWidgetItem *item, int /*column*/) {
             const QString id = item->data(0, Qt::UserRole).toString();
@@ -94,7 +131,13 @@ OutlinePanel::OutlinePanel(QWidget *parent) : QWidget(parent) {
   refreshTheme();
   connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
           [this](Qt::ColorScheme) {
-            refreshTheme();
+            // On Windows colorSchemeChanged fires *before* Qt swaps the
+            // palette, so refreshing inline would re-read the old (light)
+            // colors. Defer to the next event-loop turn, by which point the
+            // palette swap has landed and the read is fresh.
+            QTimer::singleShot(0, this, [this] {
+              refreshTheme();
+            });
           });
 }
 
@@ -145,12 +188,15 @@ void OutlinePanel::setCurrentHeading(const QString &anchorId) {
 }
 
 void OutlinePanel::refreshTheme() {
-  // All colors come from the system palette so the panel matches the rest of
-  // the chrome and follows accent/scheme changes: Window/WindowText for the
-  // surface and rows, PlaceholderText for the muted title/placeholder, a
-  // translucent WindowText wash for hover, and the real Highlight/
-  // HighlightedText pair for the selected row so selection tracks the accent.
-  const QPalette pal = palette();
+  // Colors come from the *application* palette, not this widget's palette():
+  // setStyleSheet() below folds its colors back into the widget palette, so
+  // reading our own palette would feed on the stylesheet we just set. The app
+  // palette is the clean system source, so the panel matches the rest of the
+  // chrome and follows accent/scheme changes: Window/WindowText for the surface
+  // and rows, PlaceholderText for the muted title/placeholder, a translucent
+  // WindowText wash for hover, and the real Highlight for the selected row so
+  // selection tracks the accent.
+  const QPalette pal = QGuiApplication::palette();
   const QColor txt = pal.color(QPalette::WindowText);
   const QColor place = pal.color(QPalette::PlaceholderText);
   const QString bg = pal.color(QPalette::Window).name();
@@ -161,7 +207,7 @@ void OutlinePanel::refreshTheme() {
   // softer and normal WindowText reads better on it than HighlightedText.
   const QString sel = cssRgba(pal.color(QPalette::Highlight), 0.5);
 
-  setStyleSheet(QStringLiteral(R"(
+  const QString sheet = QStringLiteral(R"(
 OutlinePanel, #outlineHeader { background: %1; }
 #outlineTitle { color: %3; font-size: 11px; font-weight: 600; }
 QToolButton#outlineCollapse {
@@ -176,12 +222,55 @@ QTreeWidget#outlineTree::item { padding: 3px 2px; border: none; }
 QTreeWidget#outlineTree::item:hover { background: %4; }
 QTreeWidget#outlineTree::item:selected { background: %5; color: %2; }
 )")
-                    .arg(bg, fg, muted, hover, sel));
+                          .arg(bg, fg, muted, hover, sel);
+  // Re-applying an identical sheet re-polishes and re-emits PaletteChange,
+  // which lands back in changeEvent() — skip the no-op to break that loop.
+  if(sheet != styleSheet()) setStyleSheet(sheet);
 }
 
 void OutlinePanel::changeEvent(QEvent *e) {
   QWidget::changeEvent(e);
-  // ApplicationPaletteChange covers both accent and light/dark shifts; the
-  // explicit stylesheet would otherwise stay frozen at its old colors.
-  if(e->type() == QEvent::ApplicationPaletteChange) refreshTheme();
+  // The explicit stylesheet would otherwise stay frozen at its old colors.
+  // ApplicationPaletteChange is what Linux delivers when the app palette swaps;
+  // Windows delivers PaletteChange to the widget instead. Both arrive *after*
+  // the palette is updated, so refreshTheme() reads fresh colors either way.
+  if(e->type() == QEvent::ApplicationPaletteChange ||
+     e->type() == QEvent::PaletteChange)
+    refreshTheme();
+}
+
+bool OutlinePanel::eventFilter(QObject *obj, QEvent *e) {
+  if(obj == m_tree->viewport() && e->type() == QEvent::ToolTip) {
+    auto *help = static_cast<QHelpEvent *>(e);
+    const QModelIndex idx = m_tree->indexAt(help->pos());
+    if(idx.isValid()) {
+      // Replicate the view's own elision test so the tooltip appears exactly
+      // when the label is truncated. The style gives the text sub-rect inside
+      // the (indented, QSS-padded) cell; the delegate then trims a text margin
+      // of PM_FocusFrameHMargin+1 per side before eliding. Measuring the full
+      // label against that same width matches the draw decision to the pixel —
+      // a plain visualRect/sizeHint estimate misses borderline rows.
+      const QString text = idx.data(Qt::DisplayRole).toString();
+      const QRect cell = m_tree->visualRect(idx);
+      QStyleOptionViewItem opt;
+      opt.initFrom(m_tree);
+      opt.rect = cell;
+      opt.features |= QStyleOptionViewItem::HasDisplay;
+      opt.text = text;
+      QStyle *st = m_tree->style();
+      const QRect textRect =
+          st->subElementRect(QStyle::SE_ItemViewItemText, &opt, m_tree);
+      const int textMargin =
+          st->pixelMetric(QStyle::PM_FocusFrameHMargin, &opt, m_tree) + 1;
+      const int available = textRect.width() - 2 * textMargin;
+      if(opt.fontMetrics.horizontalAdvance(text) > available)
+        QToolTip::showText(help->globalPos(), text, m_tree, cell);
+      else
+        QToolTip::hideText();
+    } else {
+      QToolTip::hideText();
+    }
+    return true;  // we own tooltip behaviour for the tree
+  }
+  return QWidget::eventFilter(obj, e);
 }

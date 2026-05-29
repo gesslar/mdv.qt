@@ -3,6 +3,7 @@
 #include <QIcon>
 
 #include "MainWindow.h"
+#include "WindowsChrome.h"
 
 int main(int argc, char *argv[]) {
   // QWindowKit's WidgetWindowAgent requires this be set before QApplication
@@ -24,6 +25,11 @@ int main(int argc, char *argv[]) {
   // resources/dev.gesslar.mdv.desktop).
   app.setWindowIcon(QIcon(QStringLiteral(":/icons/mdv.png")));
   QGuiApplication::setDesktopFileName(QStringLiteral("dev.gesslar.mdv"));
+
+  // Re-broadcast system color-scheme / accent changes into our frameless
+  // window, whose QWindowKit chrome otherwise swallows the palette-change
+  // propagation (no-op off Windows).
+  installChromeThemeTracker();
 
   QCommandLineParser parser;
   parser.setApplicationDescription("An offline Markdown viewer.");

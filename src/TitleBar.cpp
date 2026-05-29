@@ -9,6 +9,7 @@
 #include <QPalette>
 #include <QStyle>
 #include <QStyleHints>
+#include <QTimer>
 #include <QToolButton>
 
 #include "ChromeStyle.h"
@@ -98,24 +99,32 @@ TitleBar::TitleBar(QWidget *parent) : QWidget(parent) {
   refreshTheme();
   connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this,
           [this](Qt::ColorScheme) {
-            refreshTheme();
+            // On Windows colorSchemeChanged fires *before* Qt swaps the
+            // palette, so refreshing inline would re-read the old (light)
+            // colors. Defer to the next event-loop turn, by which point the
+            // palette swap has landed and the read is fresh.
+            QTimer::singleShot(0, this, [this] {
+              refreshTheme();
+            });
           });
 }
 
 void TitleBar::refreshTheme() {
-  // Title bar colors come straight from the system palette so it belongs to
-  // the desktop and shifts with it — Window/WindowText for the surface, with
-  // hover/press as translucent WindowText washes that read on any scheme.
-  // Close button hover stays the canonical Win11 red regardless of scheme; the
+  // Colors come from the *application* palette, not this widget's palette():
+  // setStyleSheet() below folds its colors back into the widget palette, so
+  // reading our own palette would feed on the stylesheet we just set. The app
+  // palette is the clean system source — Window/WindowText for the surface,
+  // hover/press as translucent WindowText washes that read on any scheme. Close
+  // button hover stays the canonical Win11 red regardless of scheme; the
   // menu-indicator chevron is suppressed so the buttons read as labels.
-  const QPalette pal = palette();
+  const QPalette pal = QGuiApplication::palette();
   const QString bg = pal.color(QPalette::Window).name();
   const QString fg = pal.color(QPalette::WindowText).name();
   const QColor txt = pal.color(QPalette::WindowText);
   const QString hover = cssRgba(txt, 0.10);
   const QString press = cssRgba(txt, 0.16);
 
-  setStyleSheet(QStringLiteral(R"(
+  const QString sheet = QStringLiteral(R"(
 TitleBar { background: %1; }
 TitleBar QToolButton {
     background: transparent;
@@ -129,14 +138,21 @@ TitleBar QToolButton#sysClose:hover { background: #c42b1c; color: white; }
 TitleBar QToolButton#sysClose:pressed { background: #b4271a; color: white; }
 TitleBar QToolButton::menu-indicator { image: none; }
 )")
-                    .arg(bg, fg, hover, press));
+                          .arg(bg, fg, hover, press);
+  // Re-applying an identical sheet re-polishes and re-emits PaletteChange,
+  // which lands back in changeEvent() — skip the no-op to break that loop.
+  if(sheet != styleSheet()) setStyleSheet(sheet);
 }
 
 void TitleBar::changeEvent(QEvent *e) {
   QWidget::changeEvent(e);
-  // ApplicationPaletteChange covers both accent and light/dark shifts; the
-  // explicit stylesheet would otherwise stay frozen at its old colors.
-  if(e->type() == QEvent::ApplicationPaletteChange) refreshTheme();
+  // The explicit stylesheet would otherwise stay frozen at its old colors.
+  // ApplicationPaletteChange is what Linux delivers when the app palette swaps;
+  // Windows delivers PaletteChange to the widget instead. Both arrive *after*
+  // the palette is updated, so refreshTheme() reads fresh colors either way.
+  if(e->type() == QEvent::ApplicationPaletteChange ||
+     e->type() == QEvent::PaletteChange)
+    refreshTheme();
 }
 
 void TitleBar::setFileMenu(QMenu *menu) { m_fileBtn->setMenu(menu); }

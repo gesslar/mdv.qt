@@ -56,12 +56,20 @@ signals:
 protected:
   // Field-level keys: Enter -> next, Shift+Enter -> previous, Esc -> close.
   bool eventFilter(QObject *watched, QEvent *event) override;
+  // Re-pull the stylesheet when the system palette shifts (accent or
+  // light/dark), so the bar keeps matching the surrounding chrome.
+  void changeEvent(QEvent *e) override;
 
 private:
   // Build a checkable codicon toggle wired to <settingsKey>, seeded from and
   // written back to QSettings, emitting queryChanged() on toggle.
   QToolButton *makeToggle(char16_t glyph, const QString &fallback,
                           const QString &tip, const QString &settingsKey);
+
+  // Rebuild the bar's stylesheet from the system palette. The find bar is
+  // application chrome, so it follows the desktop theme — never the document's
+  // content theme.
+  void refreshTheme();
 
   // Recolor the field per m_regexError without clobbering the themed stylesheet
   // the owner applies to the bar.
