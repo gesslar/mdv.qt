@@ -1,24 +1,21 @@
 #include "OutlinePanel.h"
 
 #include <QAbstractItemView>
+#include <QEvent>
 #include <QFont>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
+#include <QPalette>
 #include <QStyleHints>
 #include <QToolButton>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 
+#include "ChromeStyle.h"
 #include "CodiconFont.h"
-
-namespace {
-bool isDark() {
-  return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
-}
-}  // namespace
 
 OutlinePanel::OutlinePanel(QWidget *parent) : QWidget(parent) {
   setObjectName(QStringLiteral("OutlinePanel"));
@@ -148,17 +145,21 @@ void OutlinePanel::setCurrentHeading(const QString &anchorId) {
 }
 
 void OutlinePanel::refreshTheme() {
-  const bool dark = isDark();
-  const QString bg =
-      dark ? QStringLiteral("#1f1f1f") : QStringLiteral("#f3f3f3");
-  const QString fg =
-      dark ? QStringLiteral("#e8e8e8") : QStringLiteral("#1a1a1a");
-  const QString muted =
-      dark ? QStringLiteral("#9d9d9d") : QStringLiteral("#6e6e6e");
-  const QString hover = dark ? QStringLiteral("rgba(255,255,255,0.07)")
-                             : QStringLiteral("rgba(0,0,0,0.05)");
-  const QString sel = dark ? QStringLiteral("rgba(255,255,255,0.12)")
-                           : QStringLiteral("rgba(0,0,0,0.10)");
+  // All colors come from the system palette so the panel matches the rest of
+  // the chrome and follows accent/scheme changes: Window/WindowText for the
+  // surface and rows, PlaceholderText for the muted title/placeholder, a
+  // translucent WindowText wash for hover, and the real Highlight/
+  // HighlightedText pair for the selected row so selection tracks the accent.
+  const QPalette pal = palette();
+  const QColor txt = pal.color(QPalette::WindowText);
+  const QColor place = pal.color(QPalette::PlaceholderText);
+  const QString bg = pal.color(QPalette::Window).name();
+  const QString fg = txt.name();
+  const QString muted = cssRgba(place, place.alphaF());
+  const QString hover = cssRgba(txt, 0.07);
+  // Selection is a 50%-alpha accent tint, not a solid fill — so the row stays
+  // softer and normal WindowText reads better on it than HighlightedText.
+  const QString sel = cssRgba(pal.color(QPalette::Highlight), 0.5);
 
   setStyleSheet(QStringLiteral(R"(
 OutlinePanel, #outlineHeader { background: %1; }
@@ -176,4 +177,11 @@ QTreeWidget#outlineTree::item:hover { background: %4; }
 QTreeWidget#outlineTree::item:selected { background: %5; color: %2; }
 )")
                     .arg(bg, fg, muted, hover, sel));
+}
+
+void OutlinePanel::changeEvent(QEvent *e) {
+  QWidget::changeEvent(e);
+  // ApplicationPaletteChange covers both accent and light/dark shifts; the
+  // explicit stylesheet would otherwise stay frozen at its old colors.
+  if(e->type() == QEvent::ApplicationPaletteChange) refreshTheme();
 }

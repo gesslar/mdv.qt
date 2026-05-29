@@ -882,8 +882,8 @@ void DocumentView::restyleFindBar() {
   QColor fgc(fg);
   if(!fgc.isValid()) fgc = QColor(0xDD, 0xDD, 0xDD);
   // The find bar is application chrome, not document content, so its accent
-  // follows the system/app palette rather than the markdown theme. (Highlight
-  // is the pre-6.6 equivalent of Accent and a safe fallback.)
+  // follows the system/app palette rather than the markdown theme, with a
+  // defensive Highlight fallback if a platform leaves Accent unset.
   const QPalette pal = m_findBar->palette();
   QColor accent = pal.color(QPalette::Accent);
   if(!accent.isValid()) accent = pal.color(QPalette::Highlight);
